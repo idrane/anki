@@ -1179,6 +1179,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         --glass-bg: rgba(255, 255, 255, 0.58);
         --glass-strong: rgba(255, 255, 255, 0.78);
         --glass-border: rgba(255, 255, 255, 0.78);
+        --content-bg: rgba(255, 255, 255, 0.86);
         --ink: #111827;
         --muted: #5c6670;
         --line: rgba(125, 149, 153, 0.24);
@@ -1188,8 +1189,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         --blue: #386fc6;
         --amber: #c98616;
         --red: #cf3d38;
-        --shadow-soft: 0 18px 50px rgba(42, 58, 68, 0.12);
-        --shadow-lift: 0 24px 70px rgba(42, 58, 68, 0.18);
+        --shadow-soft: 0 14px 38px rgba(42, 58, 68, 0.1);
+        --shadow-lift: 0 22px 58px rgba(42, 58, 68, 0.16);
         --radius-lg: 28px;
         --radius-md: 20px;
         --radius-sm: 14px;
@@ -1212,7 +1213,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         min-height: 100vh;
         max-width: 72rem;
         margin: 0 auto;
-        background: rgba(255, 255, 255, 0.26);
+        background: rgba(255, 255, 255, 0.18);
     }
 
     .top-bar {
@@ -1224,7 +1225,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         padding: 1rem;
         border: 1px solid var(--glass-border);
         border-radius: var(--radius-md);
-        background: var(--glass-bg);
+        background: var(--glass-strong);
         box-shadow: var(--shadow-soft);
         backdrop-filter: blur(24px) saturate(1.35);
     }
@@ -1436,7 +1437,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .tab-panel {
         display: grid;
-        gap: 1rem;
+        gap: 0.9rem;
     }
 
     .panel-heading {
@@ -1444,6 +1445,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         align-items: center;
         justify-content: space-between;
         gap: 1rem;
+        max-width: 48rem;
     }
 
     .study-card,
@@ -1454,7 +1456,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .card-list article {
         border: 1px solid var(--glass-border);
         border-radius: var(--radius-lg);
-        background: var(--glass-bg);
+        background: var(--glass-strong);
         box-shadow: var(--shadow-soft);
         backdrop-filter: blur(24px) saturate(1.35);
     }
@@ -1477,7 +1479,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         cursor: pointer;
         transform-style: preserve-3d;
         transition:
-            transform 220ms ease,
             box-shadow 160ms ease,
             border-color 160ms ease;
     }
@@ -1485,10 +1486,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .flip-stage:hover .flip-card {
         border-color: rgba(255, 255, 255, 0.96);
         box-shadow: var(--shadow-lift);
-    }
-
-    .flip-stage.flipped .flip-card {
-        transform: rotateY(180deg);
     }
 
     .card-face {
@@ -1500,27 +1497,44 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         padding: 1.18rem;
         overflow: hidden;
         backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        transition:
+            transform 260ms cubic-bezier(0.2, 0.72, 0.22, 1),
+            opacity 180ms ease;
     }
 
     .card-front {
         background:
             linear-gradient(
                 145deg,
-                rgba(255, 255, 255, 0.88),
-                rgba(234, 247, 248, 0.52)
+                rgba(255, 255, 255, 0.96),
+                rgba(236, 250, 250, 0.78)
             ),
-            rgba(255, 255, 255, 0.68);
+            var(--content-bg);
+        opacity: 1;
+        transform: rotateY(0deg);
     }
 
     .card-back {
         background:
             linear-gradient(
                 145deg,
-                rgba(255, 255, 255, 0.88),
-                rgba(241, 248, 238, 0.58)
+                rgba(255, 255, 255, 0.96),
+                rgba(242, 249, 239, 0.82)
             ),
-            rgba(255, 255, 255, 0.68);
+            var(--content-bg);
+        opacity: 0;
         transform: rotateY(180deg);
+    }
+
+    .flip-stage.flipped .card-front {
+        opacity: 0;
+        transform: rotateY(-180deg);
+    }
+
+    .flip-stage.flipped .card-back {
+        opacity: 1;
+        transform: rotateY(0deg);
     }
 
     .card-meta {
@@ -1567,13 +1581,13 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .question-content {
         color: #111827;
-        font-size: 1.24rem;
+        font-size: clamp(1.1rem, 1.8vw, 1.36rem);
         font-weight: 660;
         line-height: 1.45;
     }
 
     .answer-content {
-        font-size: 1.05rem;
+        font-size: clamp(1rem, 1.2vw, 1.1rem);
     }
 
     .markdown-content :global(p),
@@ -1661,6 +1675,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 0.55rem;
+        max-width: 48rem;
     }
 
     .rating {
@@ -1673,6 +1688,10 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         color: #ffffff;
         font-weight: 760;
         box-shadow: 0 12px 26px rgba(42, 58, 68, 0.12);
+    }
+
+    .rating:hover {
+        transform: translateY(-2px);
     }
 
     .rating small {
@@ -1918,7 +1937,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     @media (min-width: 760px) {
         .app-shell {
-            grid-template-columns: 12rem 1fr;
+            grid-template-columns: 11.5rem 1fr;
             grid-template-rows: auto 1fr;
             min-height: min(100vh, 58rem);
             margin: 2rem auto;
@@ -1932,7 +1951,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         .top-bar {
             grid-column: 1 / -1;
             margin: 1rem 1rem 0;
-            padding: 1.05rem 1.25rem;
+            padding: 0.95rem 1.15rem;
         }
 
         .auth-screen {
@@ -1952,7 +1971,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             margin: 1rem 0 1rem 1rem;
             padding: 0.45rem;
             border: 1px solid var(--glass-border);
-            border-radius: 28px;
+            border-radius: 26px;
             background: rgba(255, 255, 255, 0.42);
             box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.78);
         }
@@ -1977,12 +1996,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         .workspace {
             grid-column: 2;
             grid-row: 2;
-            padding: 1rem 1.35rem 1.35rem;
+            padding: 1rem 1.15rem 1.35rem;
             overflow: auto;
         }
 
         .review-panel {
-            max-width: 46rem;
+            max-width: 48rem;
         }
 
         .card-form,
