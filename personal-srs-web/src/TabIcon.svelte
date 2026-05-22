@@ -3,7 +3,7 @@ Copyright: Ankitects Pty Ltd and contributors
 License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 -->
 <script lang="ts">
-    export let name: "review" | "create" | "cards" | "files" | "stats";
+    export let name: "review" | "create" | "cards" | "files" | "stats" | "account";
 </script>
 
 <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -19,9 +19,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     {:else if name === "files"}
         <path d="M8 3h6l4 4v14H8z" />
         <path d="M14 3v5h4M5 8v12h9" />
-    {:else}
+    {:else if name === "stats"}
         <path d="M5 19V9M12 19V5M19 19v-7" />
         <path d="M3 19h18" />
+    {:else}
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
     {/if}
 </svg>
 

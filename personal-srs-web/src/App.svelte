@@ -35,7 +35,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     } from "./scheduler";
     import { supabase } from "./supabase";
 
-    type Tab = "review" | "create" | "cards" | "files" | "stats";
+    type Tab = "review" | "create" | "cards" | "files" | "stats" | "account";
     type ImportKind = "json" | "csv";
     type ImportMode = "merge" | "replace";
 
@@ -46,6 +46,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         { id: "cards", label: "Cards" },
         { id: "files", label: "Files" },
         { id: "stats", label: "Stats" },
+        { id: "account", label: "Account" },
     ];
 
     let collection: SrsCollection = createEmptyCollection();
@@ -758,19 +759,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                 {/if}
             </section>
         {:else}
-            <header class="top-bar">
-                <div>
-                    <p class="section-label">
-                        {tabs.find((tab) => tab.id === activeTab)?.label}
-                    </p>
-                    <h1>Personal SRS</h1>
-                </div>
-                <div class="account-box">
-                    <span>{userEmail}</span>
-                    <button type="button" on:click={signOut}>Sign out</button>
-                </div>
-            </header>
-
             <nav class="tab-rail" aria-label="Personal SRS tabs">
                 {#each tabs as tab}
                     <button
@@ -786,11 +774,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             </nav>
 
             <section class="workspace">
-                {#if syncing || syncStatus}
-                    <p class="sync-line">
-                        {syncing ? "Syncing..." : syncStatus}
-                    </p>
-                {/if}
                 {#if activeTab === "review"}
                     <section
                         class="tab-panel review-panel"
@@ -1101,7 +1084,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             <p class="inline-status">{fileStatus}</p>
                         {/if}
                     </section>
-                {:else}
+                {:else if activeTab === "stats"}
                     <section class="tab-panel" aria-labelledby="stats-title">
                         <div class="panel-heading">
                             <div>
@@ -1159,6 +1142,52 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             {/each}
                         </div>
                     </section>
+                {:else}
+                    <section
+                        class="tab-panel account-panel"
+                        aria-labelledby="account-title"
+                    >
+                        <div class="panel-heading">
+                            <div>
+                                <p class="section-label">Account</p>
+                                <h2 id="account-title">Sync account</h2>
+                            </div>
+                        </div>
+
+                        <div class="account-card">
+                            <div>
+                                <span>Signed in</span>
+                                <strong>{userEmail}</strong>
+                            </div>
+                            <div>
+                                <span>Status</span>
+                                <strong>
+                                    {syncing ? "Syncing..." : syncStatus || "Ready"}
+                                </strong>
+                            </div>
+                            <div>
+                                <span>Remote cards</span>
+                                <strong>{collection.cards.length}</strong>
+                            </div>
+                        </div>
+
+                        <div class="account-actions">
+                            <button
+                                type="button"
+                                class="primary-action compact"
+                                on:click={() => refreshRemoteCollection()}
+                            >
+                                Sync now
+                            </button>
+                            <button
+                                type="button"
+                                class="danger-link"
+                                on:click={signOut}
+                            >
+                                Sign out
+                            </button>
+                        </div>
+                    </section>
                 {/if}
             </section>
         {/if}
@@ -1209,25 +1238,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .app-shell {
         display: grid;
-        grid-template-rows: auto 1fr auto;
+        grid-template-rows: 1fr auto;
         min-height: 100vh;
         max-width: 72rem;
         margin: 0 auto;
         background: rgba(255, 255, 255, 0.18);
-    }
-
-    .top-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        margin: 0.8rem 0.82rem 0;
-        padding: 1rem;
-        border: 1px solid var(--glass-border);
-        border-radius: var(--radius-md);
-        background: var(--glass-strong);
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
     }
 
     .auth-screen {
@@ -1242,34 +1257,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .auth-screen p:not(.section-label):not(.inline-status) {
         color: var(--muted);
         line-height: 1.5;
-    }
-
-    .account-box {
-        display: grid;
-        justify-items: end;
-        gap: 0.35rem;
-        min-width: 0;
-        color: var(--muted);
-        font-size: 0.78rem;
-        font-weight: 700;
-    }
-
-    .account-box span {
-        max-width: 12rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .account-box button {
-        min-height: 2rem;
-        padding: 0 0.65rem;
-        border-color: var(--line);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.62);
-        color: var(--teal);
-        font-size: 0.78rem;
-        font-weight: 760;
     }
 
     h1,
@@ -1392,7 +1379,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         bottom: 0.7rem;
         left: 0.7rem;
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 0.2rem;
         padding: 0.28rem;
         border: 1px solid var(--glass-border);
@@ -1426,13 +1413,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .workspace {
         padding: 1rem 0.82rem 6.3rem;
-    }
-
-    .sync-line {
-        margin-bottom: 0.8rem;
-        color: var(--teal);
-        font-size: 0.82rem;
-        font-weight: 700;
     }
 
     .tab-panel {
@@ -1874,6 +1854,60 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         padding: 1rem;
     }
 
+    .account-panel {
+        max-width: 42rem;
+    }
+
+    .account-card {
+        display: grid;
+        gap: 0.7rem;
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        background: var(--glass-strong);
+        padding: 1rem;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px) saturate(1.35);
+    }
+
+    .account-card div {
+        display: grid;
+        gap: 0.25rem;
+        min-width: 0;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 0.7rem;
+    }
+
+    .account-card div:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .account-card span {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 760;
+        text-transform: uppercase;
+    }
+
+    .account-card strong {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        color: var(--ink);
+        font-size: 1rem;
+    }
+
+    .account-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+    }
+
+    .account-actions button {
+        min-height: 2.8rem;
+        padding: 0 1rem;
+        font-weight: 760;
+    }
+
     .stats-grid span {
         color: var(--muted);
         font-size: 0.78rem;
@@ -1938,7 +1972,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     @media (min-width: 760px) {
         .app-shell {
             grid-template-columns: 11.5rem 1fr;
-            grid-template-rows: auto 1fr;
+            grid-template-rows: 1fr;
             min-height: min(100vh, 58rem);
             margin: 2rem auto;
             border: 1px solid var(--glass-border);
@@ -1946,12 +1980,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             overflow: hidden;
             box-shadow: var(--shadow-lift);
             backdrop-filter: blur(28px) saturate(1.28);
-        }
-
-        .top-bar {
-            grid-column: 1 / -1;
-            margin: 1rem 1rem 0;
-            padding: 0.95rem 1.15rem;
         }
 
         .auth-screen {
@@ -1964,7 +1992,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
         .tab-rail {
             position: static;
-            grid-row: 2;
+            grid-row: 1;
             grid-template-columns: 1fr;
             align-content: start;
             gap: 0.38rem;
@@ -1995,7 +2023,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
         .workspace {
             grid-column: 2;
-            grid-row: 2;
+            grid-row: 1;
             padding: 1rem 1.15rem 1.35rem;
             overflow: auto;
         }
