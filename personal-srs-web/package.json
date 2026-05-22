@@ -1,0 +1,25 @@
+{
+    "name": "personal-srs-web",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite --host 127.0.0.1",
+        "build": "vite build",
+        "preview": "vite preview --host 127.0.0.1"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.106.1",
+        "@sveltejs/vite-plugin-svelte": "5.1.1",
+        "svelte": "^5.53.5",
+        "vite": "6.4.2"
+    },
+    "devDependencies": {
+        "prettier": "^3.8.3",
+        "prettier-plugin-svelte": "^4.0.1",
+        "typescript": "^5.0.4"
+    }
+}
