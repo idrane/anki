@@ -163,6 +163,19 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         fileStatus = "";
     }
 
+    function flipCurrentCard(): void {
+        if (currentCard) {
+            showBack = !showBack;
+        }
+    }
+
+    function handleFlipKey(event: KeyboardEvent): void {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            flipCurrentCard();
+        }
+    }
+
     async function addCard(): Promise<void> {
         if (!createFront.trim() || !createBack.trim()) {
             createStatus = "Front and back are required.";
@@ -373,6 +386,117 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                 .toLowerCase()
                 .includes(needle),
         );
+    }
+
+    function renderMarkdown(value: string): string {
+        const lines = escapeHtml(value).replace(/\r\n?/g, "\n").split("\n");
+        const blocks: string[] = [];
+        let index = 0;
+
+        while (index < lines.length) {
+            const line = lines[index];
+            const trimmed = line.trim();
+
+            if (!trimmed) {
+                index += 1;
+                continue;
+            }
+
+            if (trimmed.startsWith("```")) {
+                const codeLines: string[] = [];
+                index += 1;
+                while (index < lines.length && !lines[index].trim().startsWith("```")) {
+                    codeLines.push(lines[index]);
+                    index += 1;
+                }
+                index += 1;
+                blocks.push(`<pre><code>${codeLines.join("\n")}</code></pre>`);
+                continue;
+            }
+
+            const heading = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+            if (heading) {
+                const level = heading[1].length + 2;
+                blocks.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+                index += 1;
+                continue;
+            }
+
+            if (/^[-*]\s+/.test(trimmed)) {
+                const items: string[] = [];
+                while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+                    items.push(
+                        `<li>${inlineMarkdown(lines[index].trim().replace(/^[-*]\s+/, ""))}</li>`,
+                    );
+                    index += 1;
+                }
+                blocks.push(`<ul>${items.join("")}</ul>`);
+                continue;
+            }
+
+            if (/^\d+\.\s+/.test(trimmed)) {
+                const items: string[] = [];
+                while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
+                    items.push(
+                        `<li>${inlineMarkdown(lines[index].trim().replace(/^\d+\.\s+/, ""))}</li>`,
+                    );
+                    index += 1;
+                }
+                blocks.push(`<ol>${items.join("")}</ol>`);
+                continue;
+            }
+
+            if (trimmed.startsWith("&gt;")) {
+                const quoteLines: string[] = [];
+                while (index < lines.length && lines[index].trim().startsWith("&gt;")) {
+                    quoteLines.push(lines[index].trim().replace(/^&gt;\s?/, ""));
+                    index += 1;
+                }
+                blocks.push(
+                    `<blockquote>${quoteLines.map(inlineMarkdown).join("<br>")}</blockquote>`,
+                );
+                continue;
+            }
+
+            const paragraphLines = [trimmed];
+            index += 1;
+            while (index < lines.length && lines[index].trim()) {
+                const next = lines[index].trim();
+                if (
+                    next.startsWith("```") ||
+                    /^(#{1,3})\s+/.test(next) ||
+                    /^[-*]\s+/.test(next) ||
+                    /^\d+\.\s+/.test(next)
+                ) {
+                    break;
+                }
+                paragraphLines.push(next);
+                index += 1;
+            }
+            blocks.push(`<p>${paragraphLines.map(inlineMarkdown).join("<br>")}</p>`);
+        }
+
+        return blocks.join("");
+    }
+
+    function inlineMarkdown(value: string): string {
+        return value
+            .replace(/`([^`]+)`/g, "<code>$1</code>")
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+            .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+            .replace(
+                /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+                '<a href="$2" target="_blank" rel="noreferrer">$1</a>',
+            );
+    }
+
+    function escapeHtml(value: string): string {
+        return value
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
     }
 
     function collectionFromJson(text: string): SrsCollection {
@@ -681,37 +805,62 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                         </div>
 
                         {#if currentCard}
-                            <article class="study-card">
-                                <div class="card-meta">
-                                    <span>{currentCard.deck}</span>
-                                    <span>{currentCard.reps} reps</span>
-                                </div>
-                                <p class="field-label">Front</p>
-                                <h3>{currentCard.front}</h3>
-                                {#if currentCard.tags.length}
-                                    <div class="tag-row">
-                                        {#each currentCard.tags as tag}
-                                            <span>{tag}</span>
-                                        {/each}
-                                    </div>
-                                {/if}
-                            </article>
+                            <div
+                                class:flipped={showBack}
+                                class="flip-stage"
+                                role="button"
+                                tabindex="0"
+                                aria-label={showBack
+                                    ? "Tap to show question"
+                                    : "Tap to show answer"}
+                                on:click={flipCurrentCard}
+                                on:keydown={handleFlipKey}
+                            >
+                                <article class="study-card flip-card">
+                                    <section class="card-face card-front">
+                                        <div class="card-meta">
+                                            <span>{currentCard.deck}</span>
+                                            <span>{currentCard.reps} reps</span>
+                                        </div>
+                                        <p class="field-label">Front</p>
+                                        <div class="markdown-content question-content">
+                                            {@html renderMarkdown(currentCard.front)}
+                                        </div>
+                                        {#if currentCard.tags.length}
+                                            <div class="tag-row">
+                                                {#each currentCard.tags as tag}
+                                                    <span>{tag}</span>
+                                                {/each}
+                                            </div>
+                                        {/if}
+                                        <p class="tap-hint">Tap to reveal answer</p>
+                                    </section>
+
+                                    <section class="card-face card-back">
+                                        <div class="card-meta">
+                                            <span>{currentCard.deck}</span>
+                                            <span>{currentCard.phase}</span>
+                                        </div>
+                                        <p class="field-label">Back</p>
+                                        <div class="markdown-content answer-content">
+                                            {@html renderMarkdown(currentCard.back)}
+                                        </div>
+                                        {#if currentCard.source}
+                                            <a
+                                                href={currentCard.source}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                on:click|stopPropagation
+                                            >
+                                                Source
+                                            </a>
+                                        {/if}
+                                        <p class="tap-hint">Tap to see question</p>
+                                    </section>
+                                </article>
+                            </div>
 
                             {#if showBack}
-                                <article class="answer-card">
-                                    <p class="field-label">Back</p>
-                                    <p>{currentCard.back}</p>
-                                    {#if currentCard.source}
-                                        <a
-                                            href={currentCard.source}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                        >
-                                            Source
-                                        </a>
-                                    {/if}
-                                </article>
-
                                 <div class="rating-grid" aria-label="Answer buttons">
                                     {#each ratingPreviews as preview}
                                         <button
@@ -725,13 +874,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                     {/each}
                                 </div>
                             {:else}
-                                <button
-                                    type="button"
-                                    class="primary-action"
-                                    on:click={() => (showBack = true)}
-                                >
-                                    Show answer
-                                </button>
+                                <p class="inline-status">Tap the card to flip it.</p>
                             {/if}
                         {:else}
                             <div class="empty-state">
@@ -862,8 +1005,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             {#each filteredCards as card}
                                 <article>
                                     <div>
-                                        <strong>{card.front}</strong>
-                                        <p>{card.back}</p>
+                                        <div class="card-preview-title">
+                                            {@html renderMarkdown(card.front)}
+                                        </div>
+                                        <div class="card-preview-body">
+                                            {@html renderMarkdown(card.back)}
+                                        </div>
                                         <small>
                                             {card.deck} - {card.phase} - {nextDueLabel(
                                                 card,
@@ -1020,7 +1167,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
 <style>
     :global(body) {
+        margin: 0;
         background: #f6f8f9;
+    }
+
+    :global(*) {
+        box-sizing: border-box;
     }
 
     .personal-srs {
@@ -1043,7 +1195,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         min-height: 100vh;
         max-width: 72rem;
         margin: 0 auto;
-        background: #f9fbfc;
+        background: linear-gradient(180deg, #fbfcfd 0%, #eef4f5 100%);
     }
 
     .top-bar {
@@ -1053,7 +1205,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         gap: 1rem;
         padding: 1.25rem 1rem 0.75rem;
         border-bottom: 1px solid #d8e0e4;
-        background: rgba(249, 251, 252, 0.96);
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(16px);
     }
 
     .auth-screen {
@@ -1154,6 +1307,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         resize: vertical;
     }
 
+    textarea {
+        min-height: 8rem;
+        white-space: pre-wrap;
+    }
+
     label {
         display: grid;
         gap: 0.35rem;
@@ -1219,7 +1377,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .workspace {
-        padding: 1rem 0.82rem 5.3rem;
+        padding: 1rem 0.82rem 5.8rem;
     }
 
     .sync-line {
@@ -1242,7 +1400,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .study-card,
-    .answer-card,
     .edit-panel,
     .empty-state,
     .stats-grid article,
@@ -1254,11 +1411,60 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         box-shadow: 0 10px 28px rgba(20, 34, 44, 0.06);
     }
 
-    .study-card {
+    .flip-stage {
+        perspective: 1200px;
+        touch-action: manipulation;
+    }
+
+    .flip-stage:focus-visible {
+        outline: 3px solid rgba(0, 126, 143, 0.24);
+        outline-offset: 3px;
+        border-radius: 10px;
+    }
+
+    .study-card.flip-card {
+        position: relative;
+        min-height: clamp(22rem, 58vh, 34rem);
+        padding: 0;
+        cursor: pointer;
+        transform-style: preserve-3d;
+        transition:
+            transform 220ms ease,
+            box-shadow 160ms ease,
+            border-color 160ms ease;
+    }
+
+    .flip-stage:hover .flip-card {
+        border-color: #a9c8ce;
+        box-shadow: 0 18px 44px rgba(20, 34, 44, 0.1);
+    }
+
+    .flip-stage.flipped .flip-card {
+        transform: rotateY(180deg);
+    }
+
+    .card-face {
+        position: absolute;
+        inset: 0;
         display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
         gap: 1rem;
-        min-height: 17rem;
-        padding: 1.2rem;
+        padding: 1.1rem;
+        overflow: hidden;
+        backface-visibility: hidden;
+    }
+
+    .card-front {
+        background:
+            linear-gradient(180deg, rgba(233, 249, 250, 0.65), rgba(255, 255, 255, 0)),
+            #ffffff;
+    }
+
+    .card-back {
+        background:
+            linear-gradient(180deg, rgba(247, 250, 242, 0.8), rgba(255, 255, 255, 0)),
+            #ffffff;
+        transform: rotateY(180deg);
     }
 
     .card-meta {
@@ -1286,19 +1492,95 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         font-weight: 700;
     }
 
-    .answer-card {
-        display: grid;
-        gap: 0.75rem;
-        padding: 1rem;
-        color: #1f2937;
-        font-size: 1rem;
-        line-height: 1.55;
-    }
-
-    .answer-card a {
+    .card-back a,
+    .markdown-content :global(a) {
         color: #007e8f;
         font-weight: 700;
         text-decoration: none;
+    }
+
+    .markdown-content {
+        min-width: 0;
+        overflow: auto;
+        color: #1f2937;
+        overflow-wrap: anywhere;
+        line-height: 1.58;
+        white-space: normal;
+    }
+
+    .question-content {
+        color: #111827;
+        font-size: 1.24rem;
+        font-weight: 660;
+        line-height: 1.45;
+    }
+
+    .answer-content {
+        font-size: 1.05rem;
+    }
+
+    .markdown-content :global(p),
+    .markdown-content :global(ul),
+    .markdown-content :global(ol),
+    .markdown-content :global(blockquote),
+    .markdown-content :global(pre),
+    .card-preview-title :global(p),
+    .card-preview-body :global(p) {
+        margin: 0 0 0.72rem;
+    }
+
+    .markdown-content :global(h3),
+    .markdown-content :global(h4),
+    .markdown-content :global(h5) {
+        margin: 0 0 0.65rem;
+        color: #0f172a;
+        line-height: 1.22;
+    }
+
+    .markdown-content :global(ul),
+    .markdown-content :global(ol) {
+        display: grid;
+        gap: 0.34rem;
+        padding-left: 1.25rem;
+    }
+
+    .markdown-content :global(code),
+    .card-preview-title :global(code),
+    .card-preview-body :global(code) {
+        border: 1px solid #d6e1e4;
+        border-radius: 6px;
+        background: #f4f7f8;
+        padding: 0.08rem 0.32rem;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.92em;
+    }
+
+    .markdown-content :global(pre) {
+        overflow: auto;
+        border: 1px solid #d6e1e4;
+        border-radius: 8px;
+        background: #f4f7f8;
+        padding: 0.85rem;
+    }
+
+    .markdown-content :global(pre code) {
+        border: 0;
+        background: transparent;
+        padding: 0;
+        white-space: pre;
+    }
+
+    .markdown-content :global(blockquote) {
+        border-left: 3px solid #007e8f;
+        padding-left: 0.8rem;
+        color: #4b5563;
+    }
+
+    .tap-hint {
+        align-self: end;
+        color: #64727d;
+        font-size: 0.82rem;
+        font-weight: 700;
     }
 
     .primary-action {
@@ -1401,17 +1683,22 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         padding: 0.9rem;
     }
 
-    .card-list strong,
+    .card-preview-title,
     .timeline-list strong {
         display: block;
         font-size: 0.98rem;
+        font-weight: 760;
         line-height: 1.3;
     }
 
-    .card-list p {
+    .card-preview-body {
+        display: -webkit-box;
         margin-top: 0.25rem;
+        overflow: hidden;
         color: #4b5563;
         line-height: 1.45;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
     }
 
     .card-list small,
