@@ -55,6 +55,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     let syncing = false;
     let syncStatus = "";
     let activeTab: Tab = "review";
+    let menuOpen = false;
     let loaded = false;
     let showBack = false;
     let createFront = "";
@@ -159,9 +160,14 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     function switchTab(tab: Tab): void {
         activeTab = tab;
+        menuOpen = false;
         showBack = false;
         createStatus = "";
         fileStatus = "";
+    }
+
+    function toggleMenu(): void {
+        menuOpen = !menuOpen;
     }
 
     function flipCurrentCard(): void {
@@ -759,19 +765,42 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                 {/if}
             </section>
         {:else}
-            <nav class="tab-rail" aria-label="Personal SRS tabs">
-                {#each tabs as tab}
-                    <button
-                        type="button"
-                        class:active={activeTab === tab.id}
-                        aria-current={activeTab === tab.id ? "page" : undefined}
-                        on:click={() => switchTab(tab.id)}
+            <div class:open={menuOpen} class="menu-shell">
+                <button
+                    type="button"
+                    class="menu-toggle"
+                    aria-label={menuOpen ? "Close menu" : "Open menu"}
+                    aria-expanded={menuOpen}
+                    aria-controls="tab-menu"
+                    on:click={toggleMenu}
+                    on:mouseenter={() => (menuOpen = true)}
+                >
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+
+                {#if menuOpen}
+                    <nav
+                        id="tab-menu"
+                        class="tab-rail"
+                        aria-label="Personal SRS tabs"
+                        on:mouseleave={() => (menuOpen = false)}
                     >
-                        <TabIcon name={tab.id} />
-                        <span>{tab.label}</span>
-                    </button>
-                {/each}
-            </nav>
+                        {#each tabs as tab}
+                            <button
+                                type="button"
+                                class:active={activeTab === tab.id}
+                                aria-current={activeTab === tab.id ? "page" : undefined}
+                                on:click={() => switchTab(tab.id)}
+                            >
+                                <TabIcon name={tab.id} />
+                                <span>{tab.label}</span>
+                            </button>
+                        {/each}
+                    </nav>
+                {/if}
+            </div>
 
             <section class="workspace">
                 {#if activeTab === "review"}
@@ -1238,7 +1267,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .app-shell {
         display: grid;
-        grid-template-rows: 1fr auto;
+        grid-template-rows: 1fr;
         min-height: 100vh;
         max-width: 72rem;
         margin: 0 auto;
@@ -1372,34 +1401,80 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         white-space: nowrap;
     }
 
-    .tab-rail {
+    .menu-shell {
         position: fixed;
         z-index: 10;
-        right: 0.7rem;
-        bottom: 0.7rem;
-        left: 0.7rem;
+        top: 0.9rem;
+        left: 50%;
         display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 0.2rem;
-        padding: 0.28rem;
+        justify-items: center;
+        gap: 0.45rem;
+        transform: translateX(-50%);
+    }
+
+    .menu-toggle {
+        display: grid;
+        place-items: center;
+        gap: 0.18rem;
+        width: 2.9rem;
+        height: 2.9rem;
         border: 1px solid var(--glass-border);
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.66);
+        box-shadow: 0 14px 34px rgba(42, 58, 68, 0.16);
+        backdrop-filter: blur(26px) saturate(1.55);
+    }
+
+    .menu-toggle span {
+        display: block;
+        width: 1rem;
+        height: 0.12rem;
+        border-radius: 999px;
+        background: var(--teal-strong);
+        transition:
+            transform 160ms ease,
+            opacity 120ms ease;
+    }
+
+    .menu-shell.open .menu-toggle span:nth-child(1) {
+        transform: translateY(0.3rem) rotate(45deg);
+    }
+
+    .menu-shell.open .menu-toggle span:nth-child(2) {
+        opacity: 0;
+    }
+
+    .menu-shell.open .menu-toggle span:nth-child(3) {
+        transform: translateY(-0.3rem) rotate(-45deg);
+    }
+
+    .tab-rail {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(6.4rem, 1fr));
+        gap: 0.32rem;
+        width: min(calc(100vw - 1.4rem), 23rem);
+        padding: 0.42rem;
+        border: 1px solid var(--glass-border);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.7);
         box-shadow: 0 18px 46px rgba(42, 58, 68, 0.18);
         backdrop-filter: blur(26px) saturate(1.55);
     }
 
     .tab-rail button {
         display: grid;
+        grid-template-columns: auto 1fr;
         justify-items: center;
-        gap: 0.18rem;
+        align-items: center;
+        gap: 0.42rem;
         min-width: 0;
-        min-height: 3.8rem;
+        min-height: 2.7rem;
+        padding: 0 0.68rem;
         border: 0;
         border-radius: 999px;
         background: transparent;
         color: var(--muted);
-        font-size: 0.72rem;
+        font-size: 0.8rem;
         font-weight: 720;
     }
 
@@ -1412,7 +1487,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .workspace {
-        padding: 1rem 0.82rem 6.3rem;
+        padding: 1rem 0.82rem 1.2rem;
     }
 
     .tab-panel {
@@ -1989,7 +2064,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     @media (min-width: 760px) {
         .app-shell {
-            grid-template-columns: 11.5rem 1fr;
+            grid-template-columns: 1fr;
             grid-template-rows: 1fr;
             min-height: min(100vh, 58rem);
             margin: 2rem auto;
@@ -2008,26 +2083,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             background: transparent;
         }
 
-        .tab-rail {
-            position: static;
-            grid-row: 1;
-            grid-template-columns: 1fr;
-            align-content: start;
-            gap: 0.38rem;
-            margin: 1rem 0 1rem 1rem;
-            padding: 0.45rem;
-            border: 1px solid var(--glass-border);
-            border-radius: 26px;
-            background: rgba(255, 255, 255, 0.42);
-            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.78);
+        .menu-shell {
+            top: calc(2rem + 0.8rem);
         }
 
         .tab-rail button {
-            grid-template-columns: auto 1fr;
-            justify-items: start;
-            min-height: 3.6rem;
-            padding: 0 0.95rem;
-            border-radius: 22px;
+            min-height: 2.8rem;
             font-size: 0.88rem;
             text-align: left;
         }
@@ -2040,9 +2101,9 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         }
 
         .workspace {
-            grid-column: 2;
+            grid-column: 1;
             grid-row: 1;
-            padding: 1rem 1.15rem 1.35rem;
+            padding: 1.35rem;
             overflow: auto;
         }
 
