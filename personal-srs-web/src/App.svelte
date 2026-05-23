@@ -138,6 +138,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     $: geminiKeySaved = Boolean(geminiApiKey);
     $: currentAiMessages = currentCard ? (aiChatsByCard[currentCard.id] ?? []) : [];
     $: cardFontScaleLabel = `${Math.round(cardFontScale * 100)}%`;
+    $: cardFontScaleProgress = `${Math.round(((cardFontScale - 0.85) / 0.5) * 100)}%`;
     $: if (loaded && session) {
         localStorage.setItem(storageKey, JSON.stringify(collection));
     }
@@ -270,6 +271,10 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         const next = clampFontScale(Number(value));
         cardFontScale = next;
         localStorage.setItem(fontScaleStorageKey, String(next));
+    }
+
+    function adjustCardFontScale(delta: number): void {
+        updateCardFontScale(Number((cardFontScale + delta).toFixed(2)));
     }
 
     function readStoredFontScale(): number {
@@ -1133,7 +1138,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                         </div>
 
                         {#if reviewStatus}
-                            <p class="inline-status">{reviewStatus}</p>
+                            <p class="inline-status review-status">{reviewStatus}</p>
                         {/if}
 
                         {#if currentCard}
@@ -1326,7 +1331,9 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                     {/each}
                                 </div>
                             {:else}
-                                <p class="inline-status">Tap the card to flip it.</p>
+                                <p class="inline-status flip-instruction">
+                                    Tap the card to flip it.
+                                </p>
                             {/if}
                         {:else}
                             <div class="empty-state">
@@ -1687,17 +1694,29 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                 <strong>{cardFontScaleLabel}</strong>
                             </div>
                             <label class="range-setting">
-                                <span>Smaller</span>
+                                <button
+                                    type="button"
+                                    aria-label="Decrease card text size"
+                                    on:click={() => adjustCardFontScale(-0.05)}
+                                >
+                                    A-
+                                </button>
                                 <input
                                     type="range"
                                     min="0.85"
                                     max="1.35"
                                     step="0.05"
-                                    value={cardFontScale}
-                                    on:input={(event) =>
-                                        updateCardFontScale(event.currentTarget.value)}
+                                    bind:value={cardFontScale}
+                                    style={`--range-progress: ${cardFontScaleProgress};`}
+                                    on:input={() => updateCardFontScale(cardFontScale)}
                                 />
-                                <span>Larger</span>
+                                <button
+                                    type="button"
+                                    aria-label="Increase card text size"
+                                    on:click={() => adjustCardFontScale(0.05)}
+                                >
+                                    A+
+                                </button>
                             </label>
                             <button
                                 type="button"
@@ -1735,6 +1754,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     :global(body) {
         margin: 0;
         background: linear-gradient(135deg, #eef5f4 0%, #f7f4ec 42%, #eef3f8 100%);
+        overflow: hidden;
+    }
+
+    :global(html) {
+        overflow: hidden;
     }
 
     :global(*) {
@@ -1760,7 +1784,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         --radius-lg: 28px;
         --radius-md: 20px;
         --radius-sm: 14px;
-        min-height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
         color: var(--ink);
         font-family:
             Inter,
@@ -1776,9 +1801,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .app-shell {
         display: grid;
         grid-template-rows: 1fr;
-        min-height: 100vh;
+        height: 100dvh;
+        min-height: 0;
         max-width: 72rem;
         margin: 0 auto;
+        overflow: hidden;
         background: rgba(255, 255, 255, 0.18);
     }
 
@@ -1869,7 +1896,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         color: var(--ink);
         padding: 0.72rem 0.8rem;
         line-height: 1.4;
-        resize: vertical;
+        resize: none;
     }
 
     textarea {
@@ -1995,12 +2022,31 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .workspace {
-        padding: 1rem 0.82rem 1.2rem;
+        min-height: 0;
+        overflow: hidden;
+        padding: 0.86rem 0.82rem;
     }
 
     .tab-panel {
         display: grid;
         gap: 0.9rem;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .review-panel {
+        position: relative;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+    }
+
+    .review-panel > .flip-stage {
+        grid-row: 3;
+    }
+
+    .review-panel > .rating-grid,
+    .review-panel > .flip-instruction {
+        grid-row: 4;
     }
 
     .panel-heading {
@@ -2025,6 +2071,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .flip-stage {
+        min-height: 0;
         perspective: 1200px;
         touch-action: manipulation;
     }
@@ -2037,7 +2084,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .study-card.flip-card {
         position: relative;
-        min-height: clamp(23rem, 58vh, 35rem);
+        height: 100%;
+        min-height: 0;
         overflow: hidden;
         padding: 0;
         cursor: pointer;
@@ -2155,6 +2203,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         min-width: 0;
         overflow: auto;
         color: #1f2937;
+        font-size: calc(1rem * var(--card-font-scale));
         overflow-wrap: anywhere;
         line-height: 1.58;
         white-space: normal;
@@ -2162,21 +2211,13 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .question-content {
         color: #111827;
-        font-size: clamp(
-            calc(1.1rem * var(--card-font-scale)),
-            calc(1.8vw * var(--card-font-scale)),
-            calc(1.36rem * var(--card-font-scale))
-        );
+        font-size: calc(1.24rem * var(--card-font-scale));
         font-weight: 660;
         line-height: 1.45;
     }
 
     .answer-content {
-        font-size: clamp(
-            calc(1rem * var(--card-font-scale)),
-            calc(1.2vw * var(--card-font-scale)),
-            calc(1.1rem * var(--card-font-scale))
-        );
+        font-size: calc(1.08rem * var(--card-font-scale));
     }
 
     .markdown-content :global(p),
@@ -2268,9 +2309,15 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .ai-chat-shell {
+        position: absolute;
+        left: 0;
+        bottom: 5rem;
+        z-index: 20;
         display: grid;
         justify-items: start;
-        max-width: 48rem;
+        width: min(100%, 30rem);
+        max-width: calc(100vw - 1.64rem);
+        pointer-events: none;
     }
 
     .ai-hover-button {
@@ -2287,6 +2334,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         font-weight: 860;
         box-shadow: var(--shadow-soft);
         backdrop-filter: blur(20px) saturate(1.35);
+        pointer-events: auto;
     }
 
     .ai-hover-button:hover,
@@ -2299,7 +2347,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .ai-chat {
         display: grid;
         gap: 0.85rem;
-        width: min(100%, 48rem);
+        width: 100%;
         max-height: 0;
         margin-top: 0;
         overflow: hidden;
@@ -2324,7 +2372,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .ai-chat-shell:hover .ai-chat,
     .ai-chat-shell:focus-within .ai-chat,
     .ai-chat-shell.expanded .ai-chat {
-        max-height: 44rem;
+        max-height: min(58dvh, 30rem);
         margin-top: 0.72rem;
         padding: 0.95rem;
         opacity: 1;
@@ -2355,7 +2403,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .ai-thread {
         display: grid;
         gap: 0.7rem;
-        max-height: min(34vh, 20rem);
+        max-height: min(32dvh, 16rem);
         overflow: auto;
         padding: 0.1rem;
     }
@@ -2583,7 +2631,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .card-preview-title,
     .timeline-list strong {
         display: block;
-        font-size: 0.98rem;
+        font-size: calc(0.98rem * var(--card-font-scale));
         font-weight: 760;
         line-height: 1.3;
     }
@@ -2593,6 +2641,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         margin-top: 0.25rem;
         overflow: hidden;
         color: var(--muted);
+        font-size: calc(0.95rem * var(--card-font-scale));
         line-height: 1.45;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 3;
@@ -2789,20 +2838,51 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .range-setting {
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        gap: 0.75rem;
+        grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+        gap: 0.65rem;
         align-items: center;
     }
 
-    .range-setting span {
-        color: var(--muted);
-        font-size: 0.82rem;
-        font-weight: 760;
+    .range-setting button {
+        min-height: 2.35rem;
+        border-color: rgba(4, 116, 129, 0.18);
+        color: var(--teal);
+        font-weight: 860;
     }
 
     .range-setting input[type="range"] {
+        appearance: none;
         width: 100%;
-        accent-color: var(--teal);
+        height: 0.72rem;
+        border: 1px solid rgba(125, 149, 153, 0.2);
+        border-radius: 999px;
+        background: linear-gradient(
+            90deg,
+            var(--teal) 0%,
+            var(--teal) var(--range-progress),
+            rgba(125, 149, 153, 0.18) var(--range-progress),
+            rgba(125, 149, 153, 0.18) 100%
+        );
+        outline: none;
+    }
+
+    .range-setting input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 1.55rem;
+        height: 1.55rem;
+        border: 2px solid #ffffff;
+        border-radius: 999px;
+        background: var(--teal);
+        box-shadow: 0 8px 18px rgba(42, 58, 68, 0.18);
+    }
+
+    .range-setting input[type="range"]::-moz-range-thumb {
+        width: 1.35rem;
+        height: 1.35rem;
+        border: 2px solid #ffffff;
+        border-radius: 999px;
+        background: var(--teal);
+        box-shadow: 0 8px 18px rgba(42, 58, 68, 0.18);
     }
 
     .profile-note {
@@ -2878,11 +2958,22 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         font-weight: 700;
     }
 
+    .review-status {
+        position: absolute;
+        top: 5.95rem;
+        right: 0;
+        z-index: 5;
+        max-width: min(70%, 24rem);
+        text-align: right;
+        pointer-events: none;
+    }
+
     @media (min-width: 760px) {
         .app-shell {
             grid-template-columns: 1fr;
             grid-template-rows: 1fr;
-            min-height: min(100vh, 58rem);
+            height: calc(100dvh - 4rem);
+            min-height: 0;
             margin: 2rem auto;
             border: 1px solid var(--glass-border);
             border-radius: 34px;
@@ -2920,10 +3011,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             grid-column: 1;
             grid-row: 1;
             padding: 1.35rem;
-            overflow: auto;
+            overflow: hidden;
         }
 
         .review-panel {
+            position: relative;
+            grid-template-rows: auto auto minmax(0, 1fr) auto;
             max-width: 48rem;
         }
 
