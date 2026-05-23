@@ -1455,9 +1455,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .study-card.flip-card {
         position: relative;
         min-height: clamp(23rem, 58vh, 35rem);
+        overflow: hidden;
         padding: 0;
         cursor: pointer;
         transform-style: preserve-3d;
+        background: var(--content-bg);
         transition:
             box-shadow 160ms ease,
             border-color 160ms ease;
@@ -1476,11 +1478,13 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         gap: 1rem;
         padding: 1.18rem;
         overflow: hidden;
+        border-radius: inherit;
         backface-visibility: hidden;
         -webkit-backface-visibility: hidden;
         transition:
             transform 260ms cubic-bezier(0.2, 0.72, 0.22, 1),
-            opacity 180ms ease;
+            opacity 180ms ease,
+            visibility 0s linear 180ms;
     }
 
     .card-front {
@@ -1492,7 +1496,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             ),
             var(--content-bg);
         opacity: 1;
+        visibility: visible;
+        z-index: 2;
+        pointer-events: auto;
         transform: rotateY(0deg);
+        transition-delay: 0s;
     }
 
     .card-back {
@@ -1504,17 +1512,27 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             ),
             var(--content-bg);
         opacity: 0;
+        visibility: hidden;
+        z-index: 1;
+        pointer-events: none;
         transform: rotateY(180deg);
     }
 
     .flip-stage.flipped .card-front {
         opacity: 0;
+        visibility: hidden;
+        z-index: 1;
+        pointer-events: none;
         transform: rotateY(-180deg);
     }
 
     .flip-stage.flipped .card-back {
         opacity: 1;
+        visibility: visible;
+        z-index: 2;
+        pointer-events: auto;
         transform: rotateY(0deg);
+        transition-delay: 0s;
     }
 
     .card-meta {
