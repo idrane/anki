@@ -30,6 +30,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         upcomingCards,
         type CollectionSettings,
         type Rating,
+        type ReviewLogEntry,
         type SrsCard,
         type SrsCollection,
     } from "./scheduler";
@@ -38,10 +39,26 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     type Tab = "review" | "create" | "cards" | "files" | "stats" | "account";
     type ImportKind = "json" | "csv";
     type ImportMode = "merge" | "replace";
+    type ReviewMode = "due" | "random";
+    type AiChatMessage = {
+        id: string;
+        role: "user" | "model";
+        text: string;
+    };
 
     const storageKey = "anki.personal-srs.collection.v1";
     const geminiApiKeyStorageKey = "anki.personal-srs.gemini-api-key.v1";
     const geminiModel = "gemini-3.1-flash-lite";
+    const aiPromptPresets = [
+        {
+            label: "예제",
+            prompt: "이 카드 답을 자연스럽게 쓰는 짧은 예문 2개와 한국어 뜻을 보여줘.",
+        },
+        {
+            label: "설명",
+            prompt: "이 카드의 답을 초보자도 이해하기 쉽게 핵심만 설명해줘.",
+        },
+    ];
     const tabs: { id: Tab; label: string }[] = [
         { id: "review", label: "Review" },
         { id: "create", label: "Create" },
@@ -58,6 +75,9 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     let syncStatus = "";
     let activeTab: Tab = "review";
     let menuOpen = false;
+    let reviewMode: ReviewMode = "due";
+    let randomQueueIds: string[] = [];
+    let reviewStatus = "";
     let loaded = false;
     let showBack = false;
     let createFront = "";
@@ -79,14 +99,28 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     let fileStatus = "";
     let geminiApiKey = "";
     let geminiApiKeyInput = "";
-    let aiExplanation = "";
+    let aiChatsByCard: Record<string, AiChatMessage[]> = {};
+    let aiDraft = "";
     let aiStatus = "";
     let aiLoading = false;
     let aiCardId = "";
+    let aiPromptMenuOpen = false;
 
     $: due = dueCards(collection.cards);
     $: upcoming = upcomingCards(collection.cards);
-    $: currentCard = due[0] ?? null;
+    $: if (reviewMode === "random") {
+        const dueIds = new Set(due.map((card) => card.id));
+        const validQueue = randomQueueIds.filter((id) => dueIds.has(id));
+        if (validQueue.length !== randomQueueIds.length) {
+            randomQueueIds = validQueue;
+        } else if (!randomQueueIds.length && due.length) {
+            randomQueueIds = shuffledIds(due);
+        }
+    }
+    $: currentCard =
+        reviewMode === "random"
+            ? (due.find((card) => card.id === randomQueueIds[0]) ?? due[0] ?? null)
+            : (due[0] ?? null);
     $: ratingPreviews = currentCard
         ? previewsForCard(currentCard, collection.settings)
         : [];
@@ -98,12 +132,14 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     $: userId = session?.user.id ?? "";
     $: userEmail = session?.user.email ?? "Google account";
     $: geminiKeySaved = Boolean(geminiApiKey);
+    $: currentAiMessages = currentCard ? (aiChatsByCard[currentCard.id] ?? []) : [];
     $: if (loaded && session) {
         localStorage.setItem(storageKey, JSON.stringify(collection));
     }
     $: if (currentCard?.id !== aiCardId) {
-        aiExplanation = "";
         aiStatus = "";
+        aiDraft = "";
+        aiPromptMenuOpen = false;
         aiCardId = currentCard?.id ?? "";
     }
 
@@ -180,6 +216,14 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         showBack = false;
         createStatus = "";
         fileStatus = "";
+        reviewStatus = "";
+    }
+
+    function setReviewMode(mode: ReviewMode): void {
+        reviewMode = mode;
+        showBack = false;
+        reviewStatus = "";
+        randomQueueIds = mode === "random" ? shuffledIds(due) : [];
     }
 
     function toggleMenu(): void {
@@ -202,7 +246,9 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         geminiApiKey = "";
         geminiApiKeyInput = "";
         localStorage.removeItem(geminiApiKeyStorageKey);
-        aiExplanation = "";
+        aiChatsByCard = {};
+        aiDraft = "";
+        aiPromptMenuOpen = false;
         aiStatus = "Gemini API key removed.";
     }
 
@@ -219,8 +265,13 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         }
     }
 
-    async function requestAiExplanation(): Promise<void> {
+    async function sendAiChatMessage(questionValue = aiDraft): Promise<void> {
         if (!currentCard) {
+            return;
+        }
+        const question = questionValue.trim();
+        if (!question) {
+            aiStatus = "Type a question for this card first.";
             return;
         }
         if (!geminiApiKey) {
@@ -228,9 +279,22 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             return;
         }
 
+        const card = currentCard;
+        const previousMessages = aiChatsByCard[card.id] ?? [];
+        const userMessage: AiChatMessage = {
+            id: `ai_${Math.random().toString(36).slice(2)}`,
+            role: "user",
+            text: question,
+        };
+        const outgoingMessages = [...previousMessages, userMessage];
+        aiChatsByCard = {
+            ...aiChatsByCard,
+            [card.id]: outgoingMessages,
+        };
+        aiDraft = "";
+        aiPromptMenuOpen = false;
         aiLoading = true;
         aiStatus = "";
-        aiExplanation = "";
         try {
             const response = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
@@ -241,18 +305,15 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                         "x-goog-api-key": geminiApiKey,
                     },
                     body: JSON.stringify({
-                        contents: [
-                            {
-                                role: "user",
-                                parts: [
-                                    {
-                                        text: buildAiExplanationPrompt(currentCard),
-                                    },
-                                ],
-                            },
-                        ],
+                        systemInstruction: {
+                            parts: [{ text: buildAiChatSystemPrompt(card) }],
+                        },
+                        contents: outgoingMessages.map((message) => ({
+                            role: message.role,
+                            parts: [{ text: message.text }],
+                        })),
                         generationConfig: {
-                            temperature: 0.25,
+                            temperature: 0.35,
                             maxOutputTokens: 700,
                         },
                     }),
@@ -268,28 +329,54 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                 .join("")
                 .trim();
             if (!text) {
-                throw new Error("Gemini returned an empty explanation.");
+                throw new Error("Gemini returned an empty answer.");
             }
-            aiExplanation = text;
-            aiStatus = "AI explanation ready.";
+            const modelMessage: AiChatMessage = {
+                id: `ai_${Math.random().toString(36).slice(2)}`,
+                role: "model",
+                text,
+            };
+            aiChatsByCard = {
+                ...aiChatsByCard,
+                [card.id]: [...outgoingMessages, modelMessage],
+            };
+            aiStatus = "";
         } catch (error) {
-            aiStatus =
-                error instanceof Error ? error.message : "AI explanation failed.";
+            aiStatus = error instanceof Error ? error.message : "Gemini chat failed.";
         } finally {
             aiLoading = false;
         }
     }
 
-    function buildAiExplanationPrompt(card: SrsCard): string {
+    function sendAiPresetPrompt(prompt: string): void {
+        aiDraft = "";
+        aiPromptMenuOpen = false;
+        void sendAiChatMessage(prompt);
+    }
+
+    function clearAiChat(): void {
+        if (!currentCard) {
+            return;
+        }
+        const next = { ...aiChatsByCard };
+        delete next[currentCard.id];
+        aiChatsByCard = next;
+        aiDraft = "";
+        aiPromptMenuOpen = false;
+        aiStatus = "";
+    }
+
+    function buildAiChatSystemPrompt(card: SrsCard): string {
         return [
-            "You are a concise study tutor for an SRS flashcard app.",
-            "Explain the answer in Korean with a compact Markdown structure.",
-            "Do not repeat the full flashcard. Add helpful context, distinctions, and one memory cue.",
-            "Keep it under 220 Korean words.",
+            "You are a concise Korean study tutor inside a personal SRS flashcard app.",
+            "Answer only about the current card unless the learner asks for a directly related comparison.",
+            "Use compact Markdown, short examples, and memory cues when useful.",
+            "Keep each reply focused and under 180 Korean words unless the learner asks for more detail.",
             "",
-            `Question:\n${card.front}`,
+            "Current flashcard:",
+            `Front:\n${normalizeMarkdownInput(card.front)}`,
             "",
-            `Answer:\n${card.back}`,
+            `Back:\n${normalizeMarkdownInput(card.back)}`,
         ].join("\n");
     }
 
@@ -334,6 +421,16 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         }
 
         const result = answerCard(currentCard, rating, collection.settings);
+        collection = {
+            ...collection,
+            cards: collection.cards.map((card) =>
+                card.id === result.card.id ? result.card : card,
+            ),
+            reviewLog: [result.log, ...collection.reviewLog],
+        };
+        randomQueueIds = randomQueueIds.filter((id) => id !== result.card.id);
+        reviewStatus = formatReviewOutcome(result.log, result.card);
+        showBack = false;
         syncing = true;
         try {
             const savedCard = await updateRemoteCard(result.card);
@@ -343,9 +440,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                 cards: collection.cards.map((card) =>
                     card.id === savedCard.id ? savedCard : card,
                 ),
-                reviewLog: [savedLog, ...collection.reviewLog],
+                reviewLog: collection.reviewLog.map((entry) =>
+                    entry.id === result.log.id ? savedLog : entry,
+                ),
             };
-            showBack = false;
+            reviewStatus = formatReviewOutcome(savedLog, savedCard);
         } catch (error) {
             syncStatus = error instanceof Error ? error.message : "Review failed.";
         } finally {
@@ -505,8 +604,23 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         );
     }
 
+    function shuffledIds(cards: SrsCard[]): string[] {
+        const ids = cards.map((card) => card.id);
+        for (let index = ids.length - 1; index > 0; index -= 1) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            [ids[index], ids[swapIndex]] = [ids[swapIndex], ids[index]];
+        }
+        return ids;
+    }
+
+    function formatReviewOutcome(entry: ReviewLogEntry, card: SrsCard): string {
+        return `${entry.rating.toUpperCase()} -> ${entry.nextPhase}, next ${nextDueLabel(card)}`;
+    }
+
     function renderMarkdown(value: string): string {
-        const lines = escapeHtml(value).replace(/\r\n?/g, "\n").split("\n");
+        const lines = escapeHtml(normalizeMarkdownInput(value))
+            .replace(/\r\n?/g, "\n")
+            .split("\n");
         const blocks: string[] = [];
         let index = 0;
 
@@ -596,6 +710,25 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         return blocks.join("");
     }
 
+    function normalizeMarkdownInput(value: string): string {
+        let normalized = value.replace(/\\n/g, "\n").replace(/\r\n?/g, "\n").trim();
+        const legacyPromptMatch =
+            /^#{1,3}\s+(.+?)\s+(?:\n\s*)?뜻을 떠올린 뒤 카드를 뒤집으세요\.?$/.exec(
+                normalized,
+            );
+        if (legacyPromptMatch) {
+            return legacyPromptMatch[1].trim();
+        }
+
+        if (!normalized.includes("\n") && /^#{1,3}\s/.test(normalized)) {
+            normalized = normalized
+                .replace(/\s+(#{1,3})\s+/g, "\n\n$1 ")
+                .replace(/\s+-\s+/g, "\n");
+        }
+
+        return normalized;
+    }
+
     function inlineMarkdown(value: string): string {
         return value
             .replace(/`([^`]+)`/g, "<code>$1</code>")
@@ -636,11 +769,15 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         const sourceIndex = hasHeader ? header.indexOf("source") : 4;
         const cards = body
             .map((row) =>
-                createCard(row[frontIndex] ?? "", row[backIndex] ?? "", {
-                    deck: row[deckIndex] || "Default",
-                    tags: splitTags(row[tagsIndex] ?? ""),
-                    source: row[sourceIndex] || undefined,
-                }),
+                createCard(
+                    normalizeImportedText(row[frontIndex] ?? ""),
+                    normalizeImportedText(row[backIndex] ?? ""),
+                    {
+                        deck: row[deckIndex] || "Default",
+                        tags: splitTags(row[tagsIndex] ?? ""),
+                        source: row[sourceIndex] || undefined,
+                    },
+                ),
             )
             .filter((card) => card.front && card.back);
 
@@ -726,8 +863,10 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             return null;
         }
 
-        const front = String(value.front ?? value.question ?? "").trim();
-        const back = String(value.back ?? value.answer ?? "").trim();
+        const front = normalizeImportedText(
+            String(value.front ?? value.question ?? ""),
+        );
+        const back = normalizeImportedText(String(value.back ?? value.answer ?? ""));
         if (!front || !back) {
             return null;
         }
@@ -755,6 +894,14 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             lapses: Number(value.lapses ?? 0),
             reps: Number(value.reps ?? 0),
         };
+    }
+
+    function normalizeImportedText(value: string): string {
+        return value
+            .replace(/\uFEFF/g, "")
+            .replace(/\\n/g, "\n")
+            .replace(/\r\n?/g, "\n")
+            .trim();
     }
 
     function parseCsv(text: string): string[][] {
@@ -926,6 +1073,31 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             <span class="status-pill">{due.length} due</span>
                         </div>
 
+                        <div
+                            class="review-controls"
+                            role="group"
+                            aria-label="Review order"
+                        >
+                            <button
+                                type="button"
+                                class:active={reviewMode === "due"}
+                                on:click={() => setReviewMode("due")}
+                            >
+                                Due order
+                            </button>
+                            <button
+                                type="button"
+                                class:active={reviewMode === "random"}
+                                on:click={() => setReviewMode("random")}
+                            >
+                                Random
+                            </button>
+                        </div>
+
+                        {#if reviewStatus}
+                            <p class="inline-status">{reviewStatus}</p>
+                        {/if}
+
                         {#if currentCard}
                             <div
                                 class:flipped={showBack}
@@ -983,29 +1155,100 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             </div>
 
                             {#if showBack}
-                                <div class="ai-tools">
-                                    <button
-                                        type="button"
-                                        class="ai-action"
-                                        disabled={aiLoading}
-                                        on:click={requestAiExplanation}
+                                <section class="ai-chat" aria-label="Gemini card chat">
+                                    <div class="ai-chat-header">
+                                        <div>
+                                            <p class="field-label">Gemini chat</p>
+                                            <h3>Ask about this card</h3>
+                                        </div>
+                                        {#if currentAiMessages.length}
+                                            <button
+                                                type="button"
+                                                class="ghost-action compact"
+                                                on:click={clearAiChat}
+                                            >
+                                                Clear
+                                            </button>
+                                        {/if}
+                                    </div>
+
+                                    <div class="ai-thread" aria-live="polite">
+                                        {#if currentAiMessages.length}
+                                            {#each currentAiMessages as message}
+                                                <article
+                                                    class="ai-message {message.role}"
+                                                >
+                                                    <span>
+                                                        {message.role === "user"
+                                                            ? "You"
+                                                            : "Gemini"}
+                                                    </span>
+                                                    <div class="markdown-content">
+                                                        {@html renderMarkdown(
+                                                            message.text,
+                                                        )}
+                                                    </div>
+                                                </article>
+                                            {/each}
+                                        {:else}
+                                            <p class="ai-empty">
+                                                Ask for a hint, example sentence, memory
+                                                cue, or why the answer fits this card.
+                                            </p>
+                                        {/if}
+                                    </div>
+
+                                    <form
+                                        class="ai-composer"
+                                        on:submit|preventDefault={sendAiChatMessage}
                                     >
-                                        {aiLoading
-                                            ? "Asking Gemini..."
-                                            : "AI explanation"}
-                                    </button>
+                                        <div class="ai-input-shell">
+                                            <textarea
+                                                bind:value={aiDraft}
+                                                rows="2"
+                                                placeholder="Ask a question about this card..."
+                                                disabled={aiLoading}
+                                            ></textarea>
+                                            <button
+                                                type="button"
+                                                class="ai-plus"
+                                                aria-label="Open prompt shortcuts"
+                                                aria-expanded={aiPromptMenuOpen}
+                                                disabled={aiLoading}
+                                                on:click={() =>
+                                                    (aiPromptMenuOpen =
+                                                        !aiPromptMenuOpen)}
+                                            >
+                                                +
+                                            </button>
+                                            {#if aiPromptMenuOpen}
+                                                <div class="ai-prompt-menu">
+                                                    {#each aiPromptPresets as preset}
+                                                        <button
+                                                            type="button"
+                                                            on:click={() =>
+                                                                sendAiPresetPrompt(
+                                                                    preset.prompt,
+                                                                )}
+                                                        >
+                                                            {preset.label}
+                                                        </button>
+                                                    {/each}
+                                                </div>
+                                            {/if}
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            class="ai-action"
+                                            disabled={aiLoading}
+                                        >
+                                            {aiLoading ? "Sending..." : "Send"}
+                                        </button>
+                                    </form>
                                     {#if aiStatus}
                                         <p class="inline-status">{aiStatus}</p>
                                     {/if}
-                                </div>
-                                {#if aiExplanation}
-                                    <article class="ai-explanation">
-                                        <p class="field-label">Gemini note</p>
-                                        <div class="markdown-content">
-                                            {@html renderMarkdown(aiExplanation)}
-                                        </div>
-                                    </article>
-                                {/if}
+                                </section>
                                 <div class="rating-grid" aria-label="Answer buttons">
                                     {#each ratingPreviews as preview}
                                         <button
@@ -1922,12 +2165,143 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         max-width: 48rem;
     }
 
-    .ai-tools {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.65rem;
-        align-items: center;
+    .ai-chat {
+        display: grid;
+        gap: 0.85rem;
         max-width: 48rem;
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.62);
+        padding: 0.95rem;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px) saturate(1.35);
+    }
+
+    .ai-chat-header {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .ai-chat-header h3 {
+        margin: 0.1rem 0 0;
+        font-size: 1rem;
+        line-height: 1.2;
+    }
+
+    .ai-thread {
+        display: grid;
+        gap: 0.7rem;
+        max-height: min(34vh, 20rem);
+        overflow: auto;
+        padding: 0.1rem;
+    }
+
+    .ai-empty {
+        margin: 0;
+        border: 1px dashed rgba(4, 116, 129, 0.28);
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.45);
+        padding: 0.85rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.45;
+    }
+
+    .ai-message {
+        display: grid;
+        gap: 0.35rem;
+        max-width: min(100%, 38rem);
+        border: 1px solid rgba(125, 149, 153, 0.2);
+        border-radius: 22px;
+        padding: 0.8rem 0.9rem;
+    }
+
+    .ai-message.user {
+        justify-self: end;
+        background: rgba(56, 111, 198, 0.11);
+    }
+
+    .ai-message.model {
+        justify-self: start;
+        background: rgba(255, 255, 255, 0.76);
+    }
+
+    .ai-message > span {
+        color: var(--teal);
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .ai-composer {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.6rem;
+        align-items: end;
+    }
+
+    .ai-input-shell {
+        position: relative;
+        min-width: 0;
+    }
+
+    .ai-input-shell textarea {
+        width: 100%;
+        min-height: 5.3rem;
+        padding-left: 3.05rem;
+        resize: vertical;
+    }
+
+    .ai-plus {
+        position: absolute;
+        left: 0.72rem;
+        bottom: 0.72rem;
+        display: grid;
+        place-items: center;
+        width: 2rem;
+        height: 2rem;
+        min-height: 0;
+        border: 1px solid rgba(125, 149, 153, 0.24);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.82);
+        color: var(--teal);
+        font-size: 1.25rem;
+        font-weight: 720;
+        line-height: 1;
+        box-shadow: 0 8px 18px rgba(42, 58, 68, 0.08);
+    }
+
+    .ai-plus:disabled {
+        cursor: wait;
+        opacity: 0.55;
+    }
+
+    .ai-prompt-menu {
+        position: absolute;
+        left: 0.35rem;
+        bottom: 3.1rem;
+        z-index: 5;
+        display: flex;
+        gap: 0.42rem;
+        border: 1px solid var(--glass-border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 0.32rem;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(18px) saturate(1.25);
+    }
+
+    .ai-prompt-menu button {
+        min-height: 2.05rem;
+        padding: 0 0.78rem;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(4, 116, 129, 0.08);
+        color: var(--teal);
+        font-size: 0.82rem;
+        font-weight: 800;
     }
 
     .ai-action {
@@ -1944,16 +2318,15 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         transform: none;
     }
 
-    .ai-explanation {
-        display: grid;
-        gap: 0.7rem;
-        max-width: 48rem;
-        border: 1px solid var(--glass-border);
-        border-radius: var(--radius-lg);
-        background: var(--glass-strong);
-        padding: 1rem;
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
+    .ghost-action {
+        min-height: 2.35rem;
+        border-color: rgba(125, 149, 153, 0.22);
+        color: var(--muted);
+        font-weight: 760;
+    }
+
+    .ghost-action.compact {
+        padding: 0 0.85rem;
     }
 
     .rating {
@@ -2101,7 +2474,19 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.82);
     }
 
-    .mode-control button {
+    .review-controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-width: 22rem;
+        padding: 0.22rem;
+        border: 1px solid var(--glass-border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.42);
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.82);
+    }
+
+    .mode-control button,
+    .review-controls button {
         min-height: 2.5rem;
         border: 0;
         background: transparent;
@@ -2110,7 +2495,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         font-weight: 760;
     }
 
-    .mode-control button.active {
+    .mode-control button.active,
+    .review-controls button.active {
         background: rgba(255, 255, 255, 0.82);
         color: var(--teal);
         box-shadow: 0 8px 20px rgba(42, 58, 68, 0.1);
