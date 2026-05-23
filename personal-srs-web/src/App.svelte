@@ -1066,35 +1066,52 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                 {/if}
             </section>
         {:else}
-            {#if syncing}
-                <div class="sync-bar" aria-live="polite" aria-label="동기화 중">
-                    <span class="sync-dot"></span>
-                    <span>동기화 중...</span>
-                </div>
-            {/if}
+            <div class:open={menuOpen} class="menu-shell">
+                <button
+                    type="button"
+                    class="menu-toggle"
+                    aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+                    aria-expanded={menuOpen}
+                    aria-controls="tab-menu"
+                    on:click={toggleMenu}
+                    on:mouseenter={() => (menuOpen = true)}
+                >
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    {#if due.length > 0 && !menuOpen}
+                        <span class="menu-badge">{due.length > 99 ? "99+" : due.length}</span>
+                    {/if}
+                </button>
 
-            <nav class="bottom-tab-bar" aria-label="내비게이션">
-                {#each tabs as tab}
-                    <button
-                        type="button"
-                        class:active={activeTab === tab.id}
-                        aria-current={activeTab === tab.id ? "page" : undefined}
-                        on:click={() => switchTab(tab.id)}
+                {#if menuOpen}
+                    <nav
+                        id="tab-menu"
+                        class="tab-rail"
+                        aria-label="Personal SRS 탭"
+                        on:mouseleave={() => (menuOpen = false)}
                     >
-                        <TabIcon name={tab.id} />
-                        <span>{tab.label}</span>
-                        {#if tab.id === "review" && due.length > 0}
-                            <span class="tab-badge">{due.length > 99 ? "99+" : due.length}</span>
-                        {/if}
-                    </button>
-                {/each}
-            </nav>
+                        {#each tabs as tab}
+                            <button
+                                type="button"
+                                class:active={activeTab === tab.id}
+                                aria-current={activeTab === tab.id ? "page" : undefined}
+                                on:click={() => switchTab(tab.id)}
+                            >
+                                <TabIcon name={tab.id} />
+                                <span>{tab.label}</span>
+                            </button>
+                        {/each}
+                    </nav>
+                {/if}
+            </div>
 
             <section class="workspace">
                 {#if activeTab === "review"}
                     <section
                         class="tab-panel review-panel"
                         aria-labelledby="review-title"
+                        style="padding-top: 4.2rem;"
                     >
                         <div class="panel-heading">
                             <div>
@@ -1353,7 +1370,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                         {/if}
                     </section>
                 {:else if activeTab === "create"}
-                    <section class="tab-panel" aria-labelledby="create-title">
+                    <section class="tab-panel scrollable" aria-labelledby="create-title">
                         <div class="panel-heading">
                             <div>
                                 <p class="section-label">카드 추가</p>
@@ -1399,7 +1416,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                         </form>
                     </section>
                 {:else if activeTab === "cards"}
-                    <section class="tab-panel" aria-labelledby="cards-title">
+                    <section class="tab-panel scrollable" aria-labelledby="cards-title">
                         <div class="panel-heading">
                             <div>
                                 <p class="section-label">관리</p>
@@ -1506,7 +1523,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                         </div>
                     </section>
                 {:else if activeTab === "files"}
-                    <section class="tab-panel" aria-labelledby="files-title">
+                    <section class="tab-panel scrollable" aria-labelledby="files-title">
                         <div class="panel-heading">
                             <div>
                                 <p class="section-label">파일</p>
@@ -1560,7 +1577,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                         {/if}
                     </section>
                 {:else if activeTab === "stats"}
-                    <section class="tab-panel" aria-labelledby="stats-title">
+                    <section class="tab-panel scrollable" aria-labelledby="stats-title">
                         <div class="panel-heading">
                             <div>
                                 <p class="section-label">통계</p>
@@ -1595,7 +1612,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             </article>
                         </div>
 
-                        <p class="section-label" style="margin-top: 0.5rem;">최근 복습</p>
+                        <p class="section-label">최근 복습</p>
                         <div class="timeline-list">
                             {#each collection.reviewLog.slice(0, 8) as entry}
                                 <article>
@@ -1620,7 +1637,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                     </section>
                 {:else}
                     <section
-                        class="tab-panel account-panel"
+                        class="tab-panel scrollable account-panel"
                         aria-labelledby="account-title"
                     >
                         <div class="panel-heading">
@@ -1787,7 +1804,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         --radius-lg: 24px;
         --radius-md: 18px;
         --radius-sm: 12px;
-        --tab-bar-h: 4.2rem;
+
         height: 100dvh;
         overflow: hidden;
         color: var(--ink);
@@ -1805,8 +1822,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     /* ─── Shell ──────────────────────────────────── */
     .app-shell {
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-rows: 1fr;
         height: 100dvh;
         min-height: 0;
         max-width: 72rem;
@@ -1815,115 +1832,117 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         background: rgba(255, 255, 255, 0.12);
     }
 
-    .app-shell .workspace {
-        flex: 1;
-        min-height: 0;
-    }
-
-    /* ─── Sync bar ───────────────────────────────── */
-    .sync-bar {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.4rem 1rem;
-        background: rgba(4, 116, 129, 0.08);
-        border-bottom: 1px solid rgba(4, 116, 129, 0.12);
-        color: var(--teal-strong);
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: 0;
-    }
-
-    .sync-dot {
-        display: inline-block;
-        width: 0.55rem;
-        height: 0.55rem;
-        border-radius: 999px;
-        background: var(--teal);
-        animation: pulse 1.2s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.45; transform: scale(0.75); }
-    }
-
-    /* ─── Bottom tab bar ──────────────────────────── */
-    .bottom-tab-bar {
+    /* ─── Hover menu ─────────────────────────────── */
+    .menu-shell {
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
         z-index: 100;
+        top: 0.9rem;
+        left: 50%;
         display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        max-width: 72rem;
-        margin: 0 auto;
-        padding: 0 0.3rem env(safe-area-inset-bottom, 0.3rem);
-        background: rgba(255, 255, 255, 0.82);
-        border-top: 1px solid var(--glass-border);
-        backdrop-filter: blur(28px) saturate(1.4);
-        box-shadow: 0 -4px 24px rgba(30, 50, 60, 0.07);
-        height: var(--tab-bar-h);
-        align-items: stretch;
+        justify-items: center;
+        gap: 0.45rem;
+        transform: translateX(-50%);
     }
 
-    .bottom-tab-bar button {
+    .menu-toggle {
         position: relative;
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        place-items: center;
+        gap: 0.18rem;
+        width: 3rem;
+        height: 3rem;
+        border: 1px solid var(--glass-border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        box-shadow: 0 10px 30px rgba(30, 50, 60, 0.14);
+        backdrop-filter: blur(26px) saturate(1.55);
+    }
+
+    .menu-toggle span {
+        display: block;
+        width: 1rem;
+        height: 0.11rem;
+        border-radius: 999px;
+        background: var(--teal-strong);
+        transition: transform 160ms ease, opacity 120ms ease;
+    }
+
+    /* X 애니메이션 */
+    .menu-shell.open .menu-toggle span:nth-child(1) {
+        transform: translateY(0.29rem) rotate(45deg);
+    }
+    .menu-shell.open .menu-toggle span:nth-child(2) {
+        opacity: 0;
+    }
+    .menu-shell.open .menu-toggle span:nth-child(3) {
+        transform: translateY(-0.29rem) rotate(-45deg);
+    }
+
+    /* 복습 대기 뱃지 */
+    .menu-badge {
+        position: absolute;
+        top: -0.1rem;
+        right: -0.1rem;
+        min-width: 1.1rem;
+        height: 1.1rem;
+        border-radius: 999px;
+        border: 1.5px solid #fff;
+        background: var(--red);
+        color: #fff;
+        font-size: 0.6rem;
+        font-weight: 800;
+        line-height: 1.1rem;
+        text-align: center;
+        padding: 0 0.22rem;
+        pointer-events: none;
+    }
+
+    .tab-rail {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(6.2rem, 1fr));
+        gap: 0.3rem;
+        width: min(calc(100vw - 1.4rem), 24rem);
+        padding: 0.4rem;
+        border: 1px solid var(--glass-border);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.76);
+        box-shadow: 0 18px 46px rgba(30, 50, 60, 0.16);
+        backdrop-filter: blur(28px) saturate(1.5);
+    }
+
+    .tab-rail button {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        justify-items: center;
         align-items: center;
-        justify-content: center;
-        gap: 0.22rem;
-        min-height: 44px;
-        padding: 0.35rem 0.2rem 0.25rem;
+        gap: 0.4rem;
+        min-width: 0;
+        min-height: 2.8rem;
+        padding: 0 0.65rem;
         border: 0;
-        border-radius: 0;
+        border-radius: 999px;
         background: transparent;
-        color: var(--muted-lt);
-        font-size: 0.72rem;
-        font-weight: 600;
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 700;
         letter-spacing: -0.01em;
         backdrop-filter: none;
         box-shadow: none;
         transition: color 120ms ease, background 120ms ease;
     }
 
-    .bottom-tab-bar button:hover {
-        background: rgba(4, 116, 129, 0.05);
+    .tab-rail button:hover {
+        background: rgba(4, 116, 129, 0.06);
         color: var(--teal);
         transform: none;
         box-shadow: none;
     }
 
-    .bottom-tab-bar button.active {
+    .tab-rail button.active {
         color: var(--teal-strong);
-    }
-
-    .bottom-tab-bar button.active :global(.tab-icon) {
-        stroke: var(--teal-strong);
-    }
-
-    .bottom-tab-bar button:focus-visible {
-        outline: 2px solid var(--teal);
-        outline-offset: -2px;
-        border-radius: 8px;
-    }
-
-    .tab-badge {
-        position: absolute;
-        top: 0.3rem;
-        right: calc(50% - 1.1rem);
-        min-width: 1.2rem;
-        height: 1.2rem;
-        border-radius: 999px;
-        background: var(--red);
-        color: #fff;
-        font-size: 0.65rem;
-        font-weight: 800;
-        line-height: 1.2rem;
-        text-align: center;
-        padding: 0 0.3rem;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.85), 0 6px 18px rgba(30, 50, 60, 0.1);
+        font-weight: 750;
     }
 
     /* ─── Auth ───────────────────────────────────── */
@@ -2105,10 +2124,10 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     /* ─── Workspace ──────────────────────────────── */
     .workspace {
+        height: 100dvh;
         min-height: 0;
         overflow: hidden;
         padding: 1rem 0.9rem;
-        padding-bottom: calc(var(--tab-bar-h) + 0.5rem);
     }
 
     .tab-panel {
@@ -2117,6 +2136,16 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         height: 100%;
         min-height: 0;
         overflow: hidden;
+    }
+
+    /* 스크롤이 필요한 탭: Cards, Files, Stats, Account */
+    .tab-panel.scrollable {
+        overflow-y: auto;
+        overflow-x: hidden;
+        /* 최상단 패딩 — 메뉴 토글 버튼(약 3rem + 0.9rem 여백) 공간 확보 */
+        padding-top: 4.2rem;
+        height: 100%;
+        align-content: start;
     }
 
     .review-panel {
@@ -2892,11 +2921,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     /* ─── Responsive ─────────────────────────────── */
     @media (min-width: 760px) {
         .app-shell {
-            height: calc(100dvh - 3rem);
+            height: calc(100dvh - 4rem);
             min-height: 0;
-            margin: 1.5rem auto;
+            margin: 2rem auto;
             border: 1px solid var(--glass-border);
-            border-radius: 32px;
+            border-radius: 34px;
             overflow: hidden;
             box-shadow: var(--shadow-lift);
             backdrop-filter: blur(28px) saturate(1.25);
@@ -2910,16 +2939,20 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             background: transparent;
         }
 
-        .bottom-tab-bar {
-            border-radius: 0 0 32px 32px;
-            left: auto;
-            right: auto;
-            max-width: 72rem;
+        .menu-shell {
+            top: calc(2rem + 0.85rem);
+        }
+
+        .tab-rail button {
+            min-height: 2.9rem;
+            font-size: 0.88rem;
         }
 
         .workspace {
+            grid-column: 1;
+            grid-row: 1;
+            height: 100%;
             padding: 1.35rem;
-            padding-bottom: calc(var(--tab-bar-h) + 0.5rem);
             overflow: hidden;
         }
 
