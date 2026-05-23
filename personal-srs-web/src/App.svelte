@@ -48,6 +48,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     const storageKey = "anki.personal-srs.collection.v1";
     const geminiApiKeyStorageKey = "anki.personal-srs.gemini-api-key.v1";
+    const fontScaleStorageKey = "anki.personal-srs.font-scale.v1";
     const geminiModel = "gemini-3.1-flash-lite";
     const aiPromptPresets = [
         {
@@ -78,6 +79,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     let reviewMode: ReviewMode = "due";
     let randomQueueIds: string[] = [];
     let reviewStatus = "";
+    let schedulerNow = new Date();
     let loaded = false;
     let showBack = false;
     let createFront = "";
@@ -105,9 +107,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     let aiLoading = false;
     let aiCardId = "";
     let aiPromptMenuOpen = false;
+    let aiChatOpen = false;
+    let cardFontScale = 1;
 
-    $: due = dueCards(collection.cards);
-    $: upcoming = upcomingCards(collection.cards);
+    $: due = dueCards(collection.cards, schedulerNow);
+    $: upcoming = upcomingCards(collection.cards, schedulerNow);
     $: if (reviewMode === "random") {
         const dueIds = new Set(due.map((card) => card.id));
         const validQueue = randomQueueIds.filter((id) => dueIds.has(id));
@@ -122,7 +126,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             ? (due.find((card) => card.id === randomQueueIds[0]) ?? due[0] ?? null)
             : (due[0] ?? null);
     $: ratingPreviews = currentCard
-        ? previewsForCard(currentCard, collection.settings)
+        ? previewsForCard(currentCard, collection.settings, schedulerNow)
         : [];
     $: filteredCards = filteredCardList(collection.cards, search);
     $: todayReviews = reviewsToday(collection.reviewLog);
@@ -133,6 +137,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     $: userEmail = session?.user.email ?? "Google account";
     $: geminiKeySaved = Boolean(geminiApiKey);
     $: currentAiMessages = currentCard ? (aiChatsByCard[currentCard.id] ?? []) : [];
+    $: cardFontScaleLabel = `${Math.round(cardFontScale * 100)}%`;
     $: if (loaded && session) {
         localStorage.setItem(storageKey, JSON.stringify(collection));
     }
@@ -140,13 +145,18 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         aiStatus = "";
         aiDraft = "";
         aiPromptMenuOpen = false;
+        aiChatOpen = false;
         aiCardId = currentCard?.id ?? "";
     }
 
     onMount(() => {
         let unsubscribe: (() => void) | undefined;
+        const schedulerTimer = window.setInterval(() => {
+            schedulerNow = new Date();
+        }, 15_000);
         geminiApiKey = localStorage.getItem(geminiApiKeyStorageKey) ?? "";
         geminiApiKeyInput = geminiApiKey;
+        cardFontScale = readStoredFontScale();
 
         async function initAuth(): Promise<void> {
             const sessionResult = await supabase.auth.getSession();
@@ -170,7 +180,10 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         }
 
         void initAuth();
-        return () => unsubscribe?.();
+        return () => {
+            unsubscribe?.();
+            window.clearInterval(schedulerTimer);
+        };
     });
 
     async function signInWithGoogle(): Promise<void> {
@@ -249,7 +262,25 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         aiChatsByCard = {};
         aiDraft = "";
         aiPromptMenuOpen = false;
+        aiChatOpen = false;
         aiStatus = "Gemini API key removed.";
+    }
+
+    function updateCardFontScale(value: string | number): void {
+        const next = clampFontScale(Number(value));
+        cardFontScale = next;
+        localStorage.setItem(fontScaleStorageKey, String(next));
+    }
+
+    function readStoredFontScale(): number {
+        return clampFontScale(Number(localStorage.getItem(fontScaleStorageKey) ?? 1));
+    }
+
+    function clampFontScale(value: number): number {
+        if (!Number.isFinite(value)) {
+            return 1;
+        }
+        return Math.min(1.35, Math.max(0.85, value));
     }
 
     function flipCurrentCard(): void {
@@ -293,6 +324,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         };
         aiDraft = "";
         aiPromptMenuOpen = false;
+        aiChatOpen = true;
         aiLoading = true;
         aiStatus = "";
         try {
@@ -351,6 +383,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     function sendAiPresetPrompt(prompt: string): void {
         aiDraft = "";
         aiPromptMenuOpen = false;
+        aiChatOpen = true;
         void sendAiChatMessage(prompt);
     }
 
@@ -363,6 +396,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         aiChatsByCard = next;
         aiDraft = "";
         aiPromptMenuOpen = false;
+        aiChatOpen = false;
         aiStatus = "";
     }
 
@@ -843,6 +877,10 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             ),
             hardMultiplier: positiveNumber(value.hardMultiplier, base.hardMultiplier),
             easyMultiplier: positiveNumber(value.easyMultiplier, base.easyMultiplier),
+            intervalMultiplier: positiveNumber(
+                value.intervalMultiplier,
+                base.intervalMultiplier,
+            ),
             lapseMultiplier: nonNegativeNumber(
                 value.lapseMultiplier,
                 base.lapseMultiplier,
@@ -997,7 +1035,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     <title>Personal SRS</title>
 </svelte:head>
 
-<main class="personal-srs">
+<main class="personal-srs" style={`--card-font-scale: ${cardFontScale};`}>
     <section class="app-shell" aria-label="Personal spaced repetition app">
         {#if !authReady}
             <section class="auth-screen" aria-label="Loading account">
@@ -1155,100 +1193,126 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             </div>
 
                             {#if showBack}
-                                <section class="ai-chat" aria-label="Gemini card chat">
-                                    <div class="ai-chat-header">
-                                        <div>
-                                            <p class="field-label">Gemini chat</p>
-                                            <h3>Ask about this card</h3>
-                                        </div>
-                                        {#if currentAiMessages.length}
-                                            <button
-                                                type="button"
-                                                class="ghost-action compact"
-                                                on:click={clearAiChat}
-                                            >
-                                                Clear
-                                            </button>
-                                        {/if}
-                                    </div>
-
-                                    <div class="ai-thread" aria-live="polite">
-                                        {#if currentAiMessages.length}
-                                            {#each currentAiMessages as message}
-                                                <article
-                                                    class="ai-message {message.role}"
-                                                >
-                                                    <span>
-                                                        {message.role === "user"
-                                                            ? "You"
-                                                            : "Gemini"}
-                                                    </span>
-                                                    <div class="markdown-content">
-                                                        {@html renderMarkdown(
-                                                            message.text,
-                                                        )}
-                                                    </div>
-                                                </article>
-                                            {/each}
-                                        {:else}
-                                            <p class="ai-empty">
-                                                Ask for a hint, example sentence, memory
-                                                cue, or why the answer fits this card.
-                                            </p>
-                                        {/if}
-                                    </div>
-
-                                    <form
-                                        class="ai-composer"
-                                        on:submit|preventDefault={sendAiChatMessage}
+                                <div class:expanded={aiChatOpen} class="ai-chat-shell">
+                                    <button
+                                        type="button"
+                                        class="ai-hover-button"
+                                        aria-expanded={aiChatOpen}
+                                        aria-controls="card-ai-chat"
+                                        on:click={() => (aiChatOpen = !aiChatOpen)}
                                     >
-                                        <div class="ai-input-shell">
-                                            <textarea
-                                                bind:value={aiDraft}
-                                                rows="2"
-                                                placeholder="Ask a question about this card..."
-                                                disabled={aiLoading}
-                                            ></textarea>
-                                            <button
-                                                type="button"
-                                                class="ai-plus"
-                                                aria-label="Open prompt shortcuts"
-                                                aria-expanded={aiPromptMenuOpen}
-                                                disabled={aiLoading}
-                                                on:click={() =>
-                                                    (aiPromptMenuOpen =
-                                                        !aiPromptMenuOpen)}
-                                            >
-                                                +
-                                            </button>
-                                            {#if aiPromptMenuOpen}
-                                                <div class="ai-prompt-menu">
-                                                    {#each aiPromptPresets as preset}
-                                                        <button
-                                                            type="button"
-                                                            on:click={() =>
-                                                                sendAiPresetPrompt(
-                                                                    preset.prompt,
-                                                                )}
-                                                        >
-                                                            {preset.label}
-                                                        </button>
-                                                    {/each}
-                                                </div>
+                                        AI
+                                    </button>
+                                    <section
+                                        id="card-ai-chat"
+                                        class="ai-chat"
+                                        aria-label="Gemini card chat"
+                                    >
+                                        <div class="ai-chat-header">
+                                            <div>
+                                                <p class="field-label">Gemini chat</p>
+                                                <h3>Ask about this card</h3>
+                                            </div>
+                                            <div class="ai-chat-actions">
+                                                {#if currentAiMessages.length}
+                                                    <button
+                                                        type="button"
+                                                        class="ghost-action compact"
+                                                        on:click={clearAiChat}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                {/if}
+                                                <button
+                                                    type="button"
+                                                    class="ghost-action compact"
+                                                    on:click={() =>
+                                                        (aiChatOpen = false)}
+                                                >
+                                                    Close
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="ai-thread" aria-live="polite">
+                                            {#if currentAiMessages.length}
+                                                {#each currentAiMessages as message}
+                                                    <article
+                                                        class="ai-message {message.role}"
+                                                    >
+                                                        <span>
+                                                            {message.role === "user"
+                                                                ? "You"
+                                                                : "Gemini"}
+                                                        </span>
+                                                        <div class="markdown-content">
+                                                            {@html renderMarkdown(
+                                                                message.text,
+                                                            )}
+                                                        </div>
+                                                    </article>
+                                                {/each}
+                                            {:else}
+                                                <p class="ai-empty">
+                                                    Ask for a hint, example sentence,
+                                                    memory cue, or why the answer fits
+                                                    this card.
+                                                </p>
                                             {/if}
                                         </div>
-                                        <button
-                                            type="submit"
-                                            class="ai-action"
-                                            disabled={aiLoading}
+
+                                        <form
+                                            class="ai-composer"
+                                            on:submit|preventDefault={sendAiChatMessage}
                                         >
-                                            {aiLoading ? "Sending..." : "Send"}
-                                        </button>
-                                    </form>
-                                    {#if aiStatus}
-                                        <p class="inline-status">{aiStatus}</p>
-                                    {/if}
-                                </section>
+                                            <div class="ai-input-shell">
+                                                <textarea
+                                                    bind:value={aiDraft}
+                                                    rows="2"
+                                                    placeholder="Ask a question about this card..."
+                                                    disabled={aiLoading}
+                                                ></textarea>
+                                                <button
+                                                    type="button"
+                                                    class="ai-plus"
+                                                    aria-label="Open prompt shortcuts"
+                                                    aria-expanded={aiPromptMenuOpen}
+                                                    disabled={aiLoading}
+                                                    on:click={() =>
+                                                        (aiPromptMenuOpen =
+                                                            !aiPromptMenuOpen)}
+                                                >
+                                                    +
+                                                </button>
+                                                {#if aiPromptMenuOpen}
+                                                    <div class="ai-prompt-menu">
+                                                        {#each aiPromptPresets as preset}
+                                                            <button
+                                                                type="button"
+                                                                on:click={() =>
+                                                                    sendAiPresetPrompt(
+                                                                        preset.prompt,
+                                                                    )}
+                                                            >
+                                                                {preset.label}
+                                                            </button>
+                                                        {/each}
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                            <button
+                                                type="submit"
+                                                class="ai-action"
+                                                disabled={aiLoading}
+                                            >
+                                                {aiLoading ? "Sending..." : "Send"}
+                                            </button>
+                                        </form>
+                                        {#if aiStatus}
+                                            <p class="inline-status">{aiStatus}</p>
+                                        {/if}
+                                    </section>
+                                </div>
                                 <div class="rating-grid" aria-label="Answer buttons">
                                     {#each ratingPreviews as preview}
                                         <button
@@ -1613,6 +1677,36 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                 request an AI explanation.
                             </p>
                         </form>
+
+                        <section class="settings-card" aria-labelledby="display-title">
+                            <div class="settings-card-header">
+                                <div>
+                                    <p class="section-label">Display</p>
+                                    <h3 id="display-title">Card text size</h3>
+                                </div>
+                                <strong>{cardFontScaleLabel}</strong>
+                            </div>
+                            <label class="range-setting">
+                                <span>Smaller</span>
+                                <input
+                                    type="range"
+                                    min="0.85"
+                                    max="1.35"
+                                    step="0.05"
+                                    value={cardFontScale}
+                                    on:input={(event) =>
+                                        updateCardFontScale(event.currentTarget.value)}
+                                />
+                                <span>Larger</span>
+                            </label>
+                            <button
+                                type="button"
+                                class="ghost-action compact"
+                                on:click={() => updateCardFontScale(1)}
+                            >
+                                Reset text size
+                            </button>
+                        </section>
 
                         <div class="account-actions">
                             <button
@@ -2068,13 +2162,21 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .question-content {
         color: #111827;
-        font-size: clamp(1.1rem, 1.8vw, 1.36rem);
+        font-size: clamp(
+            calc(1.1rem * var(--card-font-scale)),
+            calc(1.8vw * var(--card-font-scale)),
+            calc(1.36rem * var(--card-font-scale))
+        );
         font-weight: 660;
         line-height: 1.45;
     }
 
     .answer-content {
-        font-size: clamp(1rem, 1.2vw, 1.1rem);
+        font-size: clamp(
+            calc(1rem * var(--card-font-scale)),
+            calc(1.2vw * var(--card-font-scale)),
+            calc(1.1rem * var(--card-font-scale))
+        );
     }
 
     .markdown-content :global(p),
@@ -2165,16 +2267,69 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         max-width: 48rem;
     }
 
+    .ai-chat-shell {
+        display: grid;
+        justify-items: start;
+        max-width: 48rem;
+    }
+
+    .ai-hover-button {
+        display: grid;
+        place-items: center;
+        width: 3.15rem;
+        height: 3.15rem;
+        min-height: 0;
+        border: 1px solid rgba(56, 111, 198, 0.24);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.82);
+        color: var(--blue);
+        font-size: 0.9rem;
+        font-weight: 860;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(20px) saturate(1.35);
+    }
+
+    .ai-hover-button:hover,
+    .ai-chat-shell.expanded .ai-hover-button,
+    .ai-chat-shell:focus-within .ai-hover-button {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.94);
+    }
+
     .ai-chat {
         display: grid;
         gap: 0.85rem;
-        max-width: 48rem;
+        width: min(100%, 48rem);
+        max-height: 0;
+        margin-top: 0;
+        overflow: hidden;
         border: 1px solid var(--glass-border);
         border-radius: var(--radius-lg);
         background: rgba(255, 255, 255, 0.62);
-        padding: 0.95rem;
+        padding: 0 0.95rem;
+        opacity: 0;
         box-shadow: var(--shadow-soft);
         backdrop-filter: blur(24px) saturate(1.35);
+        transform: translateY(-0.35rem) scale(0.98);
+        transform-origin: top left;
+        pointer-events: none;
+        transition:
+            max-height 180ms ease,
+            margin-top 180ms ease,
+            opacity 150ms ease,
+            padding 180ms ease,
+            transform 180ms ease;
+    }
+
+    .ai-chat-shell:hover .ai-chat,
+    .ai-chat-shell:focus-within .ai-chat,
+    .ai-chat-shell.expanded .ai-chat {
+        max-height: 44rem;
+        margin-top: 0.72rem;
+        padding: 0.95rem;
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
     }
 
     .ai-chat-header {
@@ -2188,6 +2343,13 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         margin: 0.1rem 0 0;
         font-size: 1rem;
         line-height: 1.2;
+    }
+
+    .ai-chat-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        justify-content: end;
     }
 
     .ai-thread {
@@ -2595,6 +2757,52 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         padding: 1rem;
         box-shadow: var(--shadow-soft);
         backdrop-filter: blur(24px) saturate(1.35);
+    }
+
+    .settings-card {
+        display: grid;
+        gap: 0.95rem;
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        background: var(--glass-strong);
+        padding: 1rem;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px) saturate(1.35);
+    }
+
+    .settings-card-header {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .settings-card-header h3 {
+        margin: 0.1rem 0 0;
+        font-size: 1.08rem;
+    }
+
+    .settings-card-header strong {
+        color: var(--teal);
+        font-size: 1rem;
+    }
+
+    .range-setting {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .range-setting span {
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 760;
+    }
+
+    .range-setting input[type="range"] {
+        width: 100%;
+        accent-color: var(--teal);
     }
 
     .profile-note {

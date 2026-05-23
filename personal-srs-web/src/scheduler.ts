@@ -42,6 +42,7 @@ export interface CollectionSettings {
     graduatingIntervalEasyDays: number;
     hardMultiplier: number;
     easyMultiplier: number;
+    intervalMultiplier: number;
     lapseMultiplier: number;
     minimumLapseIntervalDays: number;
     maximumReviewIntervalDays: number;
@@ -68,6 +69,7 @@ export const defaultSettings: CollectionSettings = {
     graduatingIntervalEasyDays: 4,
     hardMultiplier: 1.2,
     easyMultiplier: 1.3,
+    intervalMultiplier: 1,
     lapseMultiplier: 0,
     minimumLapseIntervalDays: 1,
     maximumReviewIntervalDays: 36500,
@@ -171,6 +173,11 @@ export function dueCards(cards: SrsCard[], now = new Date()): SrsCard[] {
     return cards
         .filter((card) => new Date(card.dueAt).getTime() <= nowMs)
         .sort((a, b) => {
+            const queue = queuePriority(a) - queuePriority(b);
+            if (queue !== 0) {
+                return queue;
+            }
+
             const due = new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
             if (due !== 0) {
                 return due;
@@ -265,7 +272,7 @@ function nextLearningState(
 > {
     if (rating === "easy") {
         return scheduleReview(card, settings.graduatingIntervalEasyDays, reviewedAt, {
-            easeFactor: card.easeFactor + easeFactorEasyDelta,
+            easeFactor: initialEaseFactor,
         });
     }
 
@@ -290,10 +297,7 @@ function nextLearningState(
 
     return {
         dueAt: addMinutes(reviewedAt, minutes).toISOString(),
-        easeFactor:
-            rating === "again"
-                ? Math.max(minimumEaseFactor, card.easeFactor + easeFactorAgainDelta)
-                : card.easeFactor,
+        easeFactor: card.easeFactor,
         intervalDays: 0,
         learningStep: nextStep,
         lapses: card.lapses,
@@ -310,25 +314,75 @@ function nextRelearningState(
     SrsCard,
     "dueAt" | "easeFactor" | "intervalDays" | "learningStep" | "lapses" | "phase"
 > {
+    const relearningIntervalDays = clampDays(
+        Math.round(
+            Math.max(
+                Math.max(card.intervalDays, 1) * settings.lapseMultiplier,
+                settings.minimumLapseIntervalDays,
+            ),
+        ),
+        settings,
+    );
+
     if (rating === "again") {
         return {
             dueAt: addMinutes(
                 reviewedAt,
                 settings.relearningStepsMinutes[0] ?? 10,
             ).toISOString(),
-            easeFactor: Math.max(
-                minimumEaseFactor,
-                card.easeFactor + easeFactorAgainDelta,
-            ),
-            intervalDays: card.intervalDays,
+            easeFactor: card.easeFactor,
+            intervalDays: relearningIntervalDays,
             learningStep: 0,
             lapses: card.lapses,
             phase: "relearning",
         };
     }
 
-    const reviewCard = { ...card, phase: "review" as const };
-    return nextReviewState(reviewCard, rating, settings, reviewedAt);
+    const maxStep = Math.max(settings.relearningStepsMinutes.length - 1, 0);
+    const nextStep =
+        rating === "good"
+            ? Math.min(card.learningStep + 1, maxStep)
+            : card.learningStep;
+
+    if (rating === "hard") {
+        return {
+            dueAt: addMinutes(
+                reviewedAt,
+                hardLearningDelay(settings.relearningStepsMinutes, card.learningStep),
+            ).toISOString(),
+            easeFactor: card.easeFactor,
+            intervalDays: relearningIntervalDays,
+            learningStep: nextStep,
+            lapses: card.lapses,
+            phase: "relearning",
+        };
+    }
+
+    if (
+        rating === "good" &&
+        card.learningStep < settings.relearningStepsMinutes.length - 1
+    ) {
+        return {
+            dueAt: addMinutes(
+                reviewedAt,
+                settings.relearningStepsMinutes[nextStep] ??
+                    settings.relearningStepsMinutes[0] ??
+                    10,
+            ).toISOString(),
+            easeFactor: card.easeFactor,
+            intervalDays: relearningIntervalDays,
+            learningStep: nextStep,
+            lapses: card.lapses,
+            phase: "relearning",
+        };
+    }
+
+    const intervalDays =
+        rating === "easy"
+            ? clampDays(relearningIntervalDays + 1, settings)
+            : relearningIntervalDays;
+
+    return scheduleReview(card, intervalDays, reviewedAt);
 }
 
 function nextReviewState(
@@ -453,7 +507,11 @@ function constrainReviewInterval(
     minimum: number,
     settings: CollectionSettings,
 ): number {
-    return clampDays(Math.round(intervalDays), settings, minimum);
+    return clampDays(
+        Math.round(intervalDays * settings.intervalMultiplier),
+        settings,
+        minimum,
+    );
 }
 
 function clampDays(days: number, settings: CollectionSettings, minimum = 1): number {
@@ -466,7 +524,23 @@ function clampDays(days: number, settings: CollectionSettings, minimum = 1): num
 function hardLearningDelay(steps: number[], currentStep: number): number {
     const current = steps[currentStep] ?? steps[0] ?? 1;
     const next = steps[Math.min(currentStep + 1, steps.length - 1)] ?? current;
+    if (currentStep === 0 && steps.length === 1) {
+        return Math.max(1, Math.min(Math.round(current * 1.5), current + 1440));
+    }
+
     return Math.max(1, Math.round((current + next) / 2));
+}
+
+function queuePriority(card: SrsCard): number {
+    if ((card.phase === "learning" || card.phase === "relearning") && card.reps > 0) {
+        return 0;
+    }
+
+    if (card.phase === "review" || card.phase === "relearning") {
+        return 1;
+    }
+
+    return 2;
 }
 
 function addMinutes(date: Date, minutes: number): Date {
