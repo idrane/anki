@@ -61,12 +61,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         },
     ];
     const tabs: { id: Tab; label: string }[] = [
-        { id: "review", label: "Review" },
-        { id: "create", label: "Create" },
-        { id: "cards", label: "Cards" },
-        { id: "files", label: "Files" },
-        { id: "stats", label: "Stats" },
-        { id: "account", label: "Account" },
+        { id: "review", label: "복습" },
+        { id: "create", label: "추가" },
+        { id: "cards", label: "카드" },
+        { id: "files", label: "파일" },
+        { id: "stats", label: "통계" },
+        { id: "account", label: "계정" },
     ];
 
     let collection: SrsCollection = createEmptyCollection();
@@ -1043,64 +1043,52 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 <main class="personal-srs" style={`--card-font-scale: ${cardFontScale};`}>
     <section class="app-shell" aria-label="Personal spaced repetition app">
         {#if !authReady}
-            <section class="auth-screen" aria-label="Loading account">
-                <p class="section-label">Account</p>
+            <section class="auth-screen" aria-label="계정 불러오는 중">
+                <p class="section-label">계정</p>
                 <h1>Personal SRS</h1>
-                <p>Checking session...</p>
+                <p>세션을 확인하는 중이에요...</p>
+                <div class="loading-dots"><span></span><span></span><span></span></div>
             </section>
         {:else if !session}
-            <section class="auth-screen" aria-label="Sign in">
-                <p class="section-label">Private Access</p>
+            <section class="auth-screen" aria-label="로그인">
+                <p class="section-label">나만의 플래시카드</p>
                 <h1>Personal SRS</h1>
-                <p>Sign in with Google to sync cards and reviews to your database.</p>
+                <p>Google 계정으로 로그인하면 카드와 복습 기록이 자동으로 동기화돼요.</p>
                 <button
                     type="button"
-                    class="primary-action"
+                    class="primary-action google-signin"
                     on:click={signInWithGoogle}
                 >
-                    Continue with Google
+                    Google로 계속하기
                 </button>
                 {#if syncStatus}
                     <p class="inline-status">{syncStatus}</p>
                 {/if}
             </section>
         {:else}
-            <div class:open={menuOpen} class="menu-shell">
-                <button
-                    type="button"
-                    class="menu-toggle"
-                    aria-label={menuOpen ? "Close menu" : "Open menu"}
-                    aria-expanded={menuOpen}
-                    aria-controls="tab-menu"
-                    on:click={toggleMenu}
-                    on:mouseenter={() => (menuOpen = true)}
-                >
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </button>
+            {#if syncing}
+                <div class="sync-bar" aria-live="polite" aria-label="동기화 중">
+                    <span class="sync-dot"></span>
+                    <span>동기화 중...</span>
+                </div>
+            {/if}
 
-                {#if menuOpen}
-                    <nav
-                        id="tab-menu"
-                        class="tab-rail"
-                        aria-label="Personal SRS tabs"
-                        on:mouseleave={() => (menuOpen = false)}
+            <nav class="bottom-tab-bar" aria-label="내비게이션">
+                {#each tabs as tab}
+                    <button
+                        type="button"
+                        class:active={activeTab === tab.id}
+                        aria-current={activeTab === tab.id ? "page" : undefined}
+                        on:click={() => switchTab(tab.id)}
                     >
-                        {#each tabs as tab}
-                            <button
-                                type="button"
-                                class:active={activeTab === tab.id}
-                                aria-current={activeTab === tab.id ? "page" : undefined}
-                                on:click={() => switchTab(tab.id)}
-                            >
-                                <TabIcon name={tab.id} />
-                                <span>{tab.label}</span>
-                            </button>
-                        {/each}
-                    </nav>
-                {/if}
-            </div>
+                        <TabIcon name={tab.id} />
+                        <span>{tab.label}</span>
+                        {#if tab.id === "review" && due.length > 0}
+                            <span class="tab-badge">{due.length > 99 ? "99+" : due.length}</span>
+                        {/if}
+                    </button>
+                {/each}
+            </nav>
 
             <section class="workspace">
                 {#if activeTab === "review"}
@@ -1110,30 +1098,30 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                     >
                         <div class="panel-heading">
                             <div>
-                                <p class="section-label">Memorize</p>
-                                <h2 id="review-title">Review queue</h2>
+                                <p class="section-label">암기</p>
+                                <h2 id="review-title">복습 큐</h2>
                             </div>
-                            <span class="status-pill">{due.length} due</span>
+                            <span class="status-pill {due.length > 0 ? 'pill-due' : ''}">{due.length}개 대기</span>
                         </div>
 
                         <div
                             class="review-controls"
                             role="group"
-                            aria-label="Review order"
+                            aria-label="복습 순서"
                         >
                             <button
                                 type="button"
                                 class:active={reviewMode === "due"}
                                 on:click={() => setReviewMode("due")}
                             >
-                                Due order
+                                순서대로
                             </button>
                             <button
                                 type="button"
                                 class:active={reviewMode === "random"}
                                 on:click={() => setReviewMode("random")}
                             >
-                                Random
+                                랜덤
                             </button>
                         </div>
 
@@ -1177,7 +1165,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                                     {/each}
                                                 </div>
                                             {/if}
-                                            <p class="tap-hint">Tap to reveal answer</p>
+                                            <p class="tap-hint">탭하여 정답 보기 👆</p>
                                         </div>
                                     </section>
 
@@ -1205,7 +1193,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                                     Source
                                                 </a>
                                             {/if}
-                                            <p class="tap-hint">Tap to see question</p>
+                                            <p class="tap-hint">탭하여 질문 보기</p>
                                         </div>
                                     </section>
                                 </article>
@@ -1347,17 +1335,19 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             {/if}
                         {:else}
                             <div class="empty-state">
-                                <h3>Review complete</h3>
+                                <div class="empty-icon">🎉</div>
+                                <h3>오늘 복습 완료!</h3>
                                 {#if upcoming[0]}
-                                    <p>Next card is {nextDueLabel(upcoming[0])}.</p>
+                                    <p>다음 카드는 {nextDueLabel(upcoming[0])} 예정이에요.</p>
                                 {:else}
-                                    <p>No cards are waiting.</p>
+                                    <p>대기 중인 카드가 없어요.</p>
                                 {/if}
                                 <button
                                     type="button"
+                                    class="primary-action compact"
                                     on:click={() => switchTab("create")}
                                 >
-                                    Create card
+                                    카드 추가하기
                                 </button>
                             </div>
                         {/if}
@@ -1366,42 +1356,42 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                     <section class="tab-panel" aria-labelledby="create-title">
                         <div class="panel-heading">
                             <div>
-                                <p class="section-label">Create</p>
-                                <h2 id="create-title">New card</h2>
+                                <p class="section-label">카드 추가</p>
+                                <h2 id="create-title">새 카드</h2>
                             </div>
                         </div>
 
                         <form class="card-form" on:submit|preventDefault={addCard}>
                             <label>
-                                <span>Deck</span>
+                                <span>덱</span>
                                 <input bind:value={createDeck} autocomplete="off" />
                             </label>
                             <label>
-                                <span>Front</span>
-                                <textarea bind:value={createFront} rows="5"></textarea>
+                                <span>앞면 (질문)</span>
+                                <textarea bind:value={createFront} rows="4" placeholder="외울 단어나 질문을 입력하세요"></textarea>
                             </label>
                             <label>
-                                <span>Back</span>
-                                <textarea bind:value={createBack} rows="5"></textarea>
+                                <span>뒷면 (정답)</span>
+                                <textarea bind:value={createBack} rows="4" placeholder="정답이나 설명을 입력하세요"></textarea>
                             </label>
                             <label>
-                                <span>Tags</span>
+                                <span>태그</span>
                                 <input
                                     bind:value={createTags}
-                                    placeholder="biology, exam"
+                                    placeholder="영어, 시험 (쉼표로 구분)"
                                     autocomplete="off"
                                 />
                             </label>
                             <label>
-                                <span>Source</span>
+                                <span>출처</span>
                                 <input
                                     bind:value={createSource}
                                     placeholder="https://..."
                                     autocomplete="off"
                                 />
                             </label>
-                            <button type="submit" class="primary-action">
-                                Save card
+                            <button type="submit" class="primary-action" disabled={syncing}>
+                                {syncing ? "저장 중..." : "카드 저장"}
                             </button>
                             {#if createStatus}
                                 <p class="inline-status">{createStatus}</p>
@@ -1412,17 +1402,17 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                     <section class="tab-panel" aria-labelledby="cards-title">
                         <div class="panel-heading">
                             <div>
-                                <p class="section-label">Manage</p>
-                                <h2 id="cards-title">Cards</h2>
+                                <p class="section-label">관리</p>
+                                <h2 id="cards-title">카드 목록</h2>
                             </div>
                             <span class="status-pill">
-                                {collection.cards.length} total
+                                총 {collection.cards.length}장
                             </span>
                         </div>
 
                         <label class="search-box">
-                            <span>Search</span>
-                            <input bind:value={search} autocomplete="off" />
+                            <span>검색</span>
+                            <input bind:value={search} autocomplete="off" placeholder="앞면, 뒷면, 덱, 태그 검색..." />
                         </label>
 
                         {#if editingId}
@@ -1430,41 +1420,43 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                 class="edit-panel"
                                 on:submit|preventDefault={saveEdit}
                             >
+                                <p class="edit-panel-title">카드 편집</p>
                                 <label>
-                                    <span>Deck</span>
+                                    <span>덱</span>
                                     <input bind:value={editDeck} autocomplete="off" />
                                 </label>
                                 <label>
-                                    <span>Front</span>
+                                    <span>앞면</span>
                                     <textarea
                                         bind:value={editFront}
                                         rows="4"
                                     ></textarea>
                                 </label>
                                 <label>
-                                    <span>Back</span>
+                                    <span>뒷면</span>
                                     <textarea bind:value={editBack} rows="4"></textarea>
                                 </label>
                                 <label>
-                                    <span>Tags</span>
+                                    <span>태그</span>
                                     <input bind:value={editTags} autocomplete="off" />
                                 </label>
                                 <label>
-                                    <span>Source</span>
+                                    <span>출처</span>
                                     <input bind:value={editSource} autocomplete="off" />
                                 </label>
                                 <div class="button-row">
                                     <button
                                         type="submit"
                                         class="primary-action compact"
+                                        disabled={syncing}
                                     >
-                                        Save
+                                        {syncing ? "저장 중..." : "저장"}
                                     </button>
                                     <button
                                         type="button"
                                         on:click={() => (editingId = null)}
                                     >
-                                        Cancel
+                                        취소
                                     </button>
                                 </div>
                             </form>
@@ -1481,9 +1473,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                             {@html renderMarkdown(card.back)}
                                         </div>
                                         <small>
-                                            {card.deck} - {card.phase} - {nextDueLabel(
-                                                card,
-                                            )}
+                                            {card.deck} · {card.phase} · {nextDueLabel(card)}
                                         </small>
                                     </div>
                                     <div class="row-actions">
@@ -1491,25 +1481,25 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                             type="button"
                                             on:click={() => startEditing(card)}
                                         >
-                                            Edit
+                                            편집
                                         </button>
                                         <button
                                             type="button"
                                             class="danger-link"
                                             on:click={() => deleteCard(card.id)}
                                         >
-                                            Delete
+                                            삭제
                                         </button>
                                     </div>
                                 </article>
                             {:else}
                                 <div class="empty-state compact-empty">
-                                    <h3>No cards found</h3>
+                                    <h3>카드가 없어요</h3>
                                     <button
                                         type="button"
                                         on:click={() => switchTab("create")}
                                     >
-                                        Create card
+                                        카드 추가하기
                                     </button>
                                 </div>
                             {/each}
@@ -1519,8 +1509,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                     <section class="tab-panel" aria-labelledby="files-title">
                         <div class="panel-heading">
                             <div>
-                                <p class="section-label">Files</p>
-                                <h2 id="files-title">Import / Export</h2>
+                                <p class="section-label">파일</p>
+                                <h2 id="files-title">가져오기 / 내보내기</h2>
                             </div>
                         </div>
 
@@ -1531,37 +1521,36 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             on:change={importFile}
                         />
 
-                        <div class="mode-control" role="group" aria-label="Import mode">
+                        <div class="mode-control" role="group" aria-label="가져오기 방식">
                             <button
                                 type="button"
                                 class:active={importMode === "merge"}
                                 on:click={() => (importMode = "merge")}
                             >
-                                Merge
+                                병합
                             </button>
                             <button
                                 type="button"
                                 class:active={importMode === "replace"}
                                 on:click={() => (importMode = "replace")}
                             >
-                                Replace
+                                대체
                             </button>
                         </div>
 
                         <div class="file-actions">
                             <button type="button" on:click={() => chooseFile("json")}>
-                                <strong>Import JSON</strong>
-                                <span>Collection JSON or card array</span>
+                                <strong>JSON 가져오기</strong>
+                                <span>컬렉션 JSON 또는 카드 배열</span>
                             </button>
                             <button type="button" on:click={() => chooseFile("csv")}>
-                                <strong>Import CSV</strong>
-                                <span>front, back, deck, tags, source</span>
+                                <strong>CSV 가져오기</strong>
+                                <span>front, back, deck, tags, source 열</span>
                             </button>
                             <button type="button" on:click={exportJson}>
-                                <strong>Export JSON</strong>
+                                <strong>JSON 내보내기</strong>
                                 <span>
-                                    {collection.cards.length} cards and {collection
-                                        .reviewLog.length} reviews
+                                    카드 {collection.cards.length}장 · 복습 기록 {collection.reviewLog.length}건
                                 </span>
                             </button>
                         </div>
@@ -1574,56 +1563,57 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                     <section class="tab-panel" aria-labelledby="stats-title">
                         <div class="panel-heading">
                             <div>
-                                <p class="section-label">Stats</p>
-                                <h2 id="stats-title">Progress</h2>
+                                <p class="section-label">통계</p>
+                                <h2 id="stats-title">학습 현황</h2>
                             </div>
                         </div>
 
                         <div class="stats-grid">
                             <article>
-                                <span>Due</span>
+                                <span>대기 중</span>
                                 <strong>{due.length}</strong>
                             </article>
                             <article>
-                                <span>Reviewed today</span>
+                                <span>오늘 복습</span>
                                 <strong>{todayReviews}</strong>
                             </article>
                             <article>
-                                <span>Streak</span>
-                                <strong>{streak}</strong>
+                                <span>연속 학습</span>
+                                <strong>{streak}<small>일</small></strong>
                             </article>
                             <article>
-                                <span>Retention</span>
-                                <strong>{retention}%</strong>
+                                <span>정답률</span>
+                                <strong>{retention}<small>%</small></strong>
                             </article>
                             <article>
-                                <span>Mature</span>
+                                <span>숙달 카드</span>
                                 <strong>{matureCards}</strong>
                             </article>
                             <article>
-                                <span>Total</span>
+                                <span>전체 카드</span>
                                 <strong>{collection.cards.length}</strong>
                             </article>
                         </div>
 
+                        <p class="section-label" style="margin-top: 0.5rem;">최근 복습</p>
                         <div class="timeline-list">
                             {#each collection.reviewLog.slice(0, 8) as entry}
                                 <article>
-                                    <span>{entry.rating}</span>
+                                    <span class="rating-badge rating-badge-{entry.rating}">{entry.rating}</span>
                                     <div>
                                         <strong>
                                             {collection.cards.find(
                                                 (card) => card.id === entry.cardId,
-                                            )?.front ?? "Deleted card"}
+                                            )?.front ?? "삭제된 카드"}
                                         </strong>
                                         <small>
-                                            {formatDateTime(entry.reviewedAt)} - {entry.nextIntervalDays}d
+                                            {formatDateTime(entry.reviewedAt)} · 다음 {entry.nextIntervalDays}일 후
                                         </small>
                                     </div>
                                 </article>
                             {:else}
                                 <div class="empty-state compact-empty">
-                                    <h3>No reviews yet</h3>
+                                    <h3>아직 복습 기록이 없어요</h3>
                                 </div>
                             {/each}
                         </div>
@@ -1635,34 +1625,34 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                     >
                         <div class="panel-heading">
                             <div>
-                                <p class="section-label">Account</p>
-                                <h2 id="account-title">Sync account</h2>
+                                <p class="section-label">계정</p>
+                                <h2 id="account-title">동기화 계정</h2>
                             </div>
                         </div>
 
                         <div class="account-card">
                             <div>
-                                <span>Signed in</span>
+                                <span>로그인 계정</span>
                                 <strong>{userEmail}</strong>
                             </div>
                             <div>
-                                <span>Status</span>
-                                <strong>
-                                    {syncing ? "Syncing..." : syncStatus || "Ready"}
+                                <span>동기화 상태</span>
+                                <strong class={syncing ? "status-syncing" : ""}>
+                                    {syncing ? "동기화 중..." : syncStatus || "준비됨"}
                                 </strong>
                             </div>
                             <div>
-                                <span>Remote cards</span>
-                                <strong>{collection.cards.length}</strong>
+                                <span>저장된 카드</span>
+                                <strong>{collection.cards.length}장</strong>
                             </div>
                             <div>
-                                <span>AI model</span>
+                                <span>AI 모델</span>
                                 <strong>{geminiModel}</strong>
                             </div>
                             <div>
-                                <span>Gemini API key</span>
-                                <strong>
-                                    {geminiKeySaved ? "Saved" : "Not saved"}
+                                <span>Gemini API 키</span>
+                                <strong class={geminiKeySaved ? "status-ok" : ""}>
+                                    {geminiKeySaved ? "✓ 저장됨" : "저장 안 됨"}
                                 </strong>
                             </div>
                         </div>
@@ -1672,7 +1662,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             on:submit|preventDefault={saveGeminiApiKey}
                         >
                             <label>
-                                <span>Gemini API key</span>
+                                <span>Gemini API 키</span>
                                 <input
                                     bind:value={geminiApiKeyInput}
                                     type="password"
@@ -1683,30 +1673,29 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             </label>
                             <div class="button-row">
                                 <button type="submit" class="primary-action compact">
-                                    Save key
+                                    키 저장
                                 </button>
                                 <button type="button" on:click={clearGeminiApiKey}>
-                                    Remove key
+                                    키 삭제
                                 </button>
                             </div>
                             <p class="profile-note">
-                                Stored in this browser profile and used only when you
-                                request an AI explanation.
+                                이 브라우저 프로필에만 저장되며, AI 설명을 요청할 때만 사용돼요.
                             </p>
                         </form>
 
                         <section class="settings-card" aria-labelledby="display-title">
                             <div class="settings-card-header">
                                 <div>
-                                    <p class="section-label">Display</p>
-                                    <h3 id="display-title">Card text size</h3>
+                                    <p class="section-label">화면 설정</p>
+                                    <h3 id="display-title">카드 글자 크기</h3>
                                 </div>
                                 <strong>{cardFontScaleLabel}</strong>
                             </div>
                             <label class="range-setting">
                                 <button
                                     type="button"
-                                    aria-label="Decrease card text size"
+                                    aria-label="글자 크기 줄이기"
                                     on:click={() => adjustCardFontScale(-0.05)}
                                 >
                                     A-
@@ -1722,7 +1711,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                 />
                                 <button
                                     type="button"
-                                    aria-label="Increase card text size"
+                                    aria-label="글자 크기 키우기"
                                     on:click={() => adjustCardFontScale(0.05)}
                                 >
                                     A+
@@ -1733,7 +1722,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                 class="ghost-action compact"
                                 on:click={() => updateCardFontScale(1)}
                             >
-                                Reset text size
+                                크기 초기화
                             </button>
                         </section>
 
@@ -1741,16 +1730,17 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             <button
                                 type="button"
                                 class="primary-action compact"
+                                disabled={syncing}
                                 on:click={() => refreshRemoteCollection()}
                             >
-                                Sync now
+                                {syncing ? "동기화 중..." : "지금 동기화"}
                             </button>
                             <button
                                 type="button"
                                 class="danger-link"
                                 on:click={signOut}
                             >
-                                Sign out
+                                로그아웃
                             </button>
                         </div>
                     </section>
@@ -1775,29 +1765,34 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         box-sizing: border-box;
     }
 
+    /* ─── Design tokens ─────────────────────────── */
     .personal-srs {
         --glass-bg: rgba(255, 255, 255, 0.58);
-        --glass-strong: rgba(255, 255, 255, 0.78);
-        --glass-border: rgba(255, 255, 255, 0.78);
-        --content-bg: rgba(255, 255, 255, 0.86);
-        --ink: #111827;
-        --muted: #5c6670;
-        --line: rgba(125, 149, 153, 0.24);
+        --glass-strong: rgba(255, 255, 255, 0.82);
+        --glass-border: rgba(255, 255, 255, 0.82);
+        --content-bg: rgba(255, 255, 255, 0.92);
+        --ink: #0d1117;
+        --ink-2: #1f2937;
+        --muted: #4b5563;
+        --muted-lt: #6b7280;
+        --line: rgba(100, 130, 140, 0.2);
         --teal: #047481;
-        --teal-strong: #006b78;
-        --green: #2f8f58;
-        --blue: #386fc6;
-        --amber: #c98616;
-        --red: #cf3d38;
-        --shadow-soft: 0 14px 38px rgba(42, 58, 68, 0.1);
-        --shadow-lift: 0 22px 58px rgba(42, 58, 68, 0.16);
-        --radius-lg: 28px;
-        --radius-md: 20px;
-        --radius-sm: 14px;
+        --teal-strong: #005f6b;
+        --green: #198754;
+        --blue: #2563eb;
+        --amber: #b45309;
+        --red: #dc2626;
+        --shadow-soft: 0 8px 28px rgba(30, 50, 60, 0.09);
+        --shadow-lift: 0 18px 52px rgba(30, 50, 60, 0.14);
+        --radius-lg: 24px;
+        --radius-md: 18px;
+        --radius-sm: 12px;
+        --tab-bar-h: 4.2rem;
         height: 100dvh;
         overflow: hidden;
         color: var(--ink);
         font-family:
+            "Pretendard",
             Inter,
             ui-sans-serif,
             system-ui,
@@ -1805,236 +1800,315 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             BlinkMacSystemFont,
             "Segoe UI",
             sans-serif;
-        letter-spacing: 0;
+        letter-spacing: -0.01em;
     }
 
+    /* ─── Shell ──────────────────────────────────── */
     .app-shell {
-        display: grid;
-        grid-template-rows: 1fr;
+        display: flex;
+        flex-direction: column;
         height: 100dvh;
         min-height: 0;
         max-width: 72rem;
         margin: 0 auto;
         overflow: hidden;
-        background: rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.12);
     }
 
+    .app-shell .workspace {
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* ─── Sync bar ───────────────────────────────── */
+    .sync-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 1rem;
+        background: rgba(4, 116, 129, 0.08);
+        border-bottom: 1px solid rgba(4, 116, 129, 0.12);
+        color: var(--teal-strong);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0;
+    }
+
+    .sync-dot {
+        display: inline-block;
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 999px;
+        background: var(--teal);
+        animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.45; transform: scale(0.75); }
+    }
+
+    /* ─── Bottom tab bar ──────────────────────────── */
+    .bottom-tab-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 0 0.3rem env(safe-area-inset-bottom, 0.3rem);
+        background: rgba(255, 255, 255, 0.82);
+        border-top: 1px solid var(--glass-border);
+        backdrop-filter: blur(28px) saturate(1.4);
+        box-shadow: 0 -4px 24px rgba(30, 50, 60, 0.07);
+        height: var(--tab-bar-h);
+        align-items: stretch;
+    }
+
+    .bottom-tab-bar button {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.22rem;
+        min-height: 44px;
+        padding: 0.35rem 0.2rem 0.25rem;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--muted-lt);
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        backdrop-filter: none;
+        box-shadow: none;
+        transition: color 120ms ease, background 120ms ease;
+    }
+
+    .bottom-tab-bar button:hover {
+        background: rgba(4, 116, 129, 0.05);
+        color: var(--teal);
+        transform: none;
+        box-shadow: none;
+    }
+
+    .bottom-tab-bar button.active {
+        color: var(--teal-strong);
+    }
+
+    .bottom-tab-bar button.active :global(.tab-icon) {
+        stroke: var(--teal-strong);
+    }
+
+    .bottom-tab-bar button:focus-visible {
+        outline: 2px solid var(--teal);
+        outline-offset: -2px;
+        border-radius: 8px;
+    }
+
+    .tab-badge {
+        position: absolute;
+        top: 0.3rem;
+        right: calc(50% - 1.1rem);
+        min-width: 1.2rem;
+        height: 1.2rem;
+        border-radius: 999px;
+        background: var(--red);
+        color: #fff;
+        font-size: 0.65rem;
+        font-weight: 800;
+        line-height: 1.2rem;
+        text-align: center;
+        padding: 0 0.3rem;
+    }
+
+    /* ─── Auth ───────────────────────────────────── */
     .auth-screen {
         display: grid;
         align-content: center;
-        gap: 1rem;
-        min-height: 100vh;
-        padding: 1.25rem;
+        gap: 1.1rem;
+        min-height: 100dvh;
+        padding: 2rem 1.5rem;
+        max-width: 26rem;
+        margin: 0 auto;
         background: transparent;
     }
 
     .auth-screen p:not(.section-label):not(.inline-status) {
         color: var(--muted);
-        line-height: 1.5;
+        line-height: 1.6;
+        font-size: 0.95rem;
     }
 
-    h1,
-    h2,
-    h3,
-    p {
-        margin: 0;
+    .google-signin {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65rem;
+        font-size: 1rem;
     }
+
+    /* Loading dots */
+    .loading-dots {
+        display: flex;
+        gap: 0.4rem;
+    }
+
+    .loading-dots span {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 999px;
+        background: var(--teal);
+        animation: bounce 0.9s ease-in-out infinite;
+    }
+
+    .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes bounce {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
+        30% { transform: translateY(-0.4rem); opacity: 1; }
+    }
+
+    /* ─── Typography ─────────────────────────────── */
+    h1, h2, h3, p { margin: 0; }
 
     h1 {
-        font-size: 1.45rem;
-        font-weight: 760;
+        font-size: 1.75rem;
+        font-weight: 800;
         line-height: 1.1;
+        letter-spacing: -0.03em;
+        color: var(--ink);
     }
 
     h2 {
-        font-size: 1.35rem;
-        font-weight: 720;
+        font-size: 1.3rem;
+        font-weight: 750;
         line-height: 1.2;
+        color: var(--ink);
     }
 
     h3 {
-        font-size: 1.42rem;
+        font-size: 1.1rem;
         font-weight: 720;
         line-height: 1.28;
+        color: var(--ink);
     }
 
-    button,
-    input,
-    textarea {
+    button, input, textarea {
         font: inherit;
-        letter-spacing: 0;
+        letter-spacing: inherit;
     }
 
     button {
         border: 1px solid var(--line);
         border-radius: var(--radius-sm);
-        background: rgba(255, 255, 255, 0.68);
+        background: rgba(255, 255, 255, 0.72);
         color: var(--ink);
         cursor: pointer;
-        backdrop-filter: blur(18px) saturate(1.25);
+        backdrop-filter: blur(16px) saturate(1.2);
         transition:
-            transform 130ms ease,
-            border-color 130ms ease,
-            background 130ms ease,
-            box-shadow 130ms ease;
+            transform 100ms ease,
+            border-color 100ms ease,
+            background 100ms ease,
+            box-shadow 100ms ease;
     }
 
     button:hover {
-        border-color: rgba(4, 116, 129, 0.28);
-        background: rgba(255, 255, 255, 0.84);
-        box-shadow: 0 10px 24px rgba(42, 58, 68, 0.1);
+        border-color: rgba(4, 116, 129, 0.32);
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 6px 18px rgba(30, 50, 60, 0.09);
         transform: translateY(-1px);
     }
 
     button:active {
-        transform: translateY(0);
+        transform: translateY(0) scale(0.98);
+        box-shadow: none;
+    }
+
+    button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none !important;
     }
 
     button:focus-visible,
     input:focus-visible,
     textarea:focus-visible {
-        outline: 3px solid rgba(4, 116, 129, 0.24);
+        outline: 2.5px solid rgba(4, 116, 129, 0.5);
         outline-offset: 2px;
     }
 
-    input,
-    textarea {
+    input, textarea {
         width: 100%;
-        border: 1px solid var(--line);
+        border: 1.5px solid var(--line);
         border-radius: var(--radius-sm);
-        background: rgba(255, 255, 255, 0.68);
+        background: rgba(255, 255, 255, 0.72);
         color: var(--ink);
-        padding: 0.72rem 0.8rem;
-        line-height: 1.4;
+        padding: 0.78rem 0.9rem;
+        line-height: 1.5;
         resize: none;
+        transition: border-color 130ms ease, box-shadow 130ms ease;
+    }
+
+    input:focus, textarea:focus {
+        border-color: rgba(4, 116, 129, 0.5);
+        box-shadow: 0 0 0 3px rgba(4, 116, 129, 0.1);
+        outline: none;
     }
 
     textarea {
-        min-height: 8rem;
+        min-height: 7rem;
         white-space: pre-wrap;
     }
 
     label {
         display: grid;
-        gap: 0.35rem;
+        gap: 0.4rem;
         color: var(--muted);
         font-size: 0.8rem;
         font-weight: 700;
     }
 
-    label span {
-        text-transform: uppercase;
-    }
+    label span { text-transform: uppercase; letter-spacing: 0.03em; }
 
     .section-label,
     .field-label {
         color: var(--teal);
-        font-size: 0.76rem;
+        font-size: 0.72rem;
         font-weight: 800;
-        letter-spacing: 0;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
     }
 
     .status-pill {
-        border: 1px solid var(--line);
+        border: 1.5px solid var(--line);
         border-radius: 999px;
         background: var(--glass-strong);
-        padding: 0.42rem 0.68rem;
+        padding: 0.38rem 0.72rem;
         color: var(--muted);
-        font-size: 0.78rem;
+        font-size: 0.8rem;
+        font-weight: 700;
         line-height: 1;
         white-space: nowrap;
     }
 
-    .menu-shell {
-        position: fixed;
-        z-index: 10;
-        top: 0.9rem;
-        left: 50%;
-        display: grid;
-        justify-items: center;
-        gap: 0.45rem;
-        transform: translateX(-50%);
-    }
-
-    .menu-toggle {
-        display: grid;
-        place-items: center;
-        gap: 0.18rem;
-        width: 2.9rem;
-        height: 2.9rem;
-        border: 1px solid var(--glass-border);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.66);
-        box-shadow: 0 14px 34px rgba(42, 58, 68, 0.16);
-        backdrop-filter: blur(26px) saturate(1.55);
-    }
-
-    .menu-toggle span {
-        display: block;
-        width: 1rem;
-        height: 0.12rem;
-        border-radius: 999px;
-        background: var(--teal-strong);
-        transition:
-            transform 160ms ease,
-            opacity 120ms ease;
-    }
-
-    .menu-shell.open .menu-toggle span:nth-child(1) {
-        transform: translateY(0.3rem) rotate(45deg);
-    }
-
-    .menu-shell.open .menu-toggle span:nth-child(2) {
-        opacity: 0;
-    }
-
-    .menu-shell.open .menu-toggle span:nth-child(3) {
-        transform: translateY(-0.3rem) rotate(-45deg);
-    }
-
-    .tab-rail {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(6.4rem, 1fr));
-        gap: 0.32rem;
-        width: min(calc(100vw - 1.4rem), 23rem);
-        padding: 0.42rem;
-        border: 1px solid var(--glass-border);
-        border-radius: 24px;
-        background: rgba(255, 255, 255, 0.7);
-        box-shadow: 0 18px 46px rgba(42, 58, 68, 0.18);
-        backdrop-filter: blur(26px) saturate(1.55);
-    }
-
-    .tab-rail button {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        justify-items: center;
-        align-items: center;
-        gap: 0.42rem;
-        min-width: 0;
-        min-height: 2.7rem;
-        padding: 0 0.68rem;
-        border: 0;
-        border-radius: 999px;
-        background: transparent;
-        color: var(--muted);
-        font-size: 0.8rem;
-        font-weight: 720;
-    }
-
-    .tab-rail button.active {
+    .status-pill.pill-due {
+        border-color: rgba(4, 116, 129, 0.35);
         color: var(--teal-strong);
-        background: rgba(255, 255, 255, 0.84);
-        box-shadow:
-            inset 0 0 0 1px rgba(255, 255, 255, 0.8),
-            0 8px 20px rgba(42, 58, 68, 0.12);
+        background: rgba(4, 116, 129, 0.07);
     }
 
+    /* ─── Workspace ──────────────────────────────── */
     .workspace {
         min-height: 0;
         overflow: hidden;
-        padding: 0.86rem 0.82rem;
+        padding: 1rem 0.9rem;
+        padding-bottom: calc(var(--tab-bar-h) + 0.5rem);
     }
 
     .tab-panel {
@@ -2050,13 +2124,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         grid-template-rows: auto auto minmax(0, 1fr) auto;
     }
 
-    .review-panel > .flip-stage {
-        grid-row: 3;
-    }
-
-    .review-panel > .rating-grid {
-        grid-row: 4;
-    }
+    .review-panel > .flip-stage { grid-row: 3; }
+    .review-panel > .rating-grid { grid-row: 4; }
 
     .panel-heading {
         display: flex;
@@ -2066,6 +2135,9 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         max-width: 48rem;
     }
 
+    .panel-heading div { display: grid; gap: 0.2rem; }
+
+    /* ─── Cards ──────────────────────────────────── */
     .study-card,
     .edit-panel,
     .empty-state,
@@ -2076,7 +2148,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         border-radius: var(--radius-lg);
         background: var(--glass-strong);
         box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
+        backdrop-filter: blur(22px) saturate(1.3);
     }
 
     .flip-stage {
@@ -2086,7 +2158,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .flip-stage:focus-visible {
-        outline: 3px solid rgba(4, 116, 129, 0.24);
+        outline: 2.5px solid rgba(4, 116, 129, 0.4);
         outline-offset: 3px;
         border-radius: var(--radius-lg);
     }
@@ -2100,13 +2172,11 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         cursor: pointer;
         transform-style: preserve-3d;
         background: var(--content-bg);
-        transition:
-            box-shadow 160ms ease,
-            border-color 160ms ease;
+        transition: box-shadow 150ms ease, border-color 150ms ease;
     }
 
     .flip-stage:hover .flip-card {
-        border-color: rgba(255, 255, 255, 0.96);
+        border-color: rgba(255, 255, 255, 0.98);
         box-shadow: var(--shadow-lift);
     }
 
@@ -2116,25 +2186,19 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         display: grid;
         grid-template-rows: auto minmax(0, 1fr) auto;
         gap: 0.85rem;
-        padding: 1.18rem;
+        padding: 1.2rem;
         overflow: hidden;
         border-radius: inherit;
         backface-visibility: hidden;
         -webkit-backface-visibility: hidden;
         transition:
-            transform 260ms cubic-bezier(0.2, 0.72, 0.22, 1),
-            opacity 180ms ease,
-            visibility 0s linear 180ms;
+            transform 240ms cubic-bezier(0.2, 0.72, 0.22, 1),
+            opacity 160ms ease,
+            visibility 0s linear 160ms;
     }
 
     .card-front {
-        background:
-            linear-gradient(
-                145deg,
-                rgba(255, 255, 255, 0.96),
-                rgba(236, 250, 250, 0.78)
-            ),
-            var(--content-bg);
+        background: linear-gradient(148deg, rgba(255,255,255,0.97), rgba(232,250,250,0.82));
         opacity: 1;
         visibility: visible;
         z-index: 2;
@@ -2144,13 +2208,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .card-back {
-        background:
-            linear-gradient(
-                145deg,
-                rgba(255, 255, 255, 0.96),
-                rgba(242, 249, 239, 0.82)
-            ),
-            var(--content-bg);
+        background: linear-gradient(148deg, rgba(255,255,255,0.97), rgba(238,252,233,0.85));
         opacity: 0;
         visibility: hidden;
         z-index: 1;
@@ -2159,18 +2217,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .flip-stage.flipped .card-front {
-        opacity: 0;
-        visibility: hidden;
-        z-index: 1;
-        pointer-events: none;
+        opacity: 0; visibility: hidden; z-index: 1; pointer-events: none;
         transform: rotateY(-180deg);
     }
 
     .flip-stage.flipped .card-back {
-        opacity: 1;
-        visibility: visible;
-        z-index: 2;
-        pointer-events: auto;
+        opacity: 1; visibility: visible; z-index: 2; pointer-events: auto;
         transform: rotateY(0deg);
         transition-delay: 0s;
     }
@@ -2179,10 +2231,9 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         display: flex;
         justify-content: space-between;
         gap: 0.75rem;
-        color: var(--muted);
-        font-size: 0.78rem;
-        font-weight: 700;
-        opacity: 0.82;
+        color: var(--muted-lt);
+        font-size: 0.75rem;
+        font-weight: 650;
     }
 
     .card-center {
@@ -2190,36 +2241,33 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         align-content: center;
         justify-items: center;
         min-height: 0;
-        padding: 1.2rem 0.4rem;
+        padding: 0.8rem 0.4rem;
         text-align: center;
     }
 
-    .card-center .field-label {
-        margin-bottom: 0.72rem;
-        opacity: 0.78;
-    }
+    .card-center .field-label { margin-bottom: 0.7rem; }
 
     .card-footer {
         display: grid;
-        gap: 0.58rem;
+        gap: 0.5rem;
         justify-items: center;
-        min-height: 3rem;
+        min-height: 2.8rem;
     }
 
     .tag-row {
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 0.45rem;
+        gap: 0.4rem;
     }
 
     .tag-row span {
-        border: 1px solid rgba(4, 116, 129, 0.22);
+        border: 1px solid rgba(4, 116, 129, 0.2);
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.62);
-        padding: 0.24rem 0.58rem;
+        background: rgba(4, 116, 129, 0.06);
+        padding: 0.22rem 0.6rem;
         color: var(--teal);
-        font-size: 0.78rem;
+        font-size: 0.76rem;
         font-weight: 700;
     }
 
@@ -2231,35 +2279,34 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .markdown-content {
-        min-width: 0;
-        max-width: 100%;
-        overflow: auto;
-        color: #1f2937;
+        min-width: 0; max-width: 100%; overflow: auto;
+        color: var(--ink-2);
         font-size: calc(1rem * var(--card-font-scale));
         overflow-wrap: anywhere;
-        line-height: 1.58;
+        line-height: 1.6;
         white-space: normal;
     }
 
     .question-content {
-        color: #111827;
+        color: var(--ink);
         font-size: clamp(
-            calc(2.1rem * var(--card-font-scale)),
-            calc(8.5vw * var(--card-font-scale)),
-            calc(4.1rem * var(--card-font-scale))
+            calc(2rem * var(--card-font-scale)),
+            calc(8vw * var(--card-font-scale)),
+            calc(3.8rem * var(--card-font-scale))
         );
-        font-weight: 780;
+        font-weight: 800;
         line-height: 1.08;
+        letter-spacing: -0.03em;
     }
 
     .answer-content {
         font-size: clamp(
-            calc(1.45rem * var(--card-font-scale)),
-            calc(5.2vw * var(--card-font-scale)),
-            calc(2.35rem * var(--card-font-scale))
+            calc(1.35rem * var(--card-font-scale)),
+            calc(4.8vw * var(--card-font-scale)),
+            calc(2.2rem * var(--card-font-scale))
         );
-        font-weight: 620;
-        line-height: 1.28;
+        font-weight: 600;
+        line-height: 1.3;
     }
 
     .markdown-content :global(p),
@@ -2268,50 +2315,39 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     .markdown-content :global(blockquote),
     .markdown-content :global(pre),
     .card-preview-title :global(p),
-    .card-preview-body :global(p) {
-        margin: 0 0 0.72rem;
-    }
+    .card-preview-body :global(p) { margin: 0 0 0.65rem; }
 
     .markdown-content :global(h3),
     .markdown-content :global(h4),
     .markdown-content :global(h5) {
-        margin: 0 0 0.65rem;
-        color: #0f172a;
-        line-height: 1.22;
+        margin: 0 0 0.6rem; color: var(--ink); line-height: 1.22;
     }
 
     .markdown-content :global(ul),
     .markdown-content :global(ol) {
-        display: grid;
-        gap: 0.34rem;
-        padding-left: 1.25rem;
+        display: grid; gap: 0.3rem; padding-left: 1.2rem;
     }
 
     .markdown-content :global(code),
     .card-preview-title :global(code),
     .card-preview-body :global(code) {
         border: 1px solid var(--line);
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.64);
-        padding: 0.08rem 0.32rem;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.7);
+        padding: 0.06rem 0.3rem;
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-        font-size: 0.92em;
+        font-size: 0.9em;
     }
 
     .markdown-content :global(pre) {
         overflow: auto;
         border: 1px solid var(--line);
         border-radius: var(--radius-sm);
-        background: rgba(255, 255, 255, 0.64);
+        background: rgba(255, 255, 255, 0.7);
         padding: 0.85rem;
     }
 
-    .markdown-content :global(pre code) {
-        border: 0;
-        background: transparent;
-        padding: 0;
-        white-space: pre;
-    }
+    .markdown-content :global(pre code) { border: 0; background: transparent; padding: 0; white-space: pre; }
 
     .markdown-content :global(blockquote) {
         border-left: 3px solid var(--teal);
@@ -2320,739 +2356,570 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .tap-hint {
-        color: var(--muted);
-        font-size: 0.8rem;
-        font-weight: 700;
+        color: var(--muted-lt);
+        font-size: 0.78rem;
+        font-weight: 600;
         text-align: center;
+        letter-spacing: 0;
     }
 
+    /* ─── Buttons ────────────────────────────────── */
     .primary-action {
         width: 100%;
-        min-height: 3rem;
-        border-color: rgba(255, 255, 255, 0.44);
+        min-height: 3.2rem;
+        border-color: rgba(255, 255, 255, 0.5);
         border-radius: 999px;
-        background: linear-gradient(135deg, var(--teal), #2f8f8b);
+        background: linear-gradient(135deg, var(--teal), #1a9e8f);
         color: #ffffff;
-        font-weight: 760;
-        box-shadow: 0 14px 32px rgba(4, 116, 129, 0.24);
+        font-size: 1rem;
+        font-weight: 750;
+        box-shadow: 0 10px 28px rgba(4, 116, 129, 0.28);
+        letter-spacing: -0.01em;
+    }
+
+    .primary-action:hover {
+        background: linear-gradient(135deg, #0588a0, #1db89e);
+        box-shadow: 0 14px 36px rgba(4, 116, 129, 0.34);
+        transform: translateY(-1px);
     }
 
     .primary-action.compact {
         width: auto;
         min-width: 7rem;
-        min-height: 2.6rem;
+        min-height: 2.7rem;
+        font-size: 0.92rem;
     }
 
+    /* ─── Rating buttons ─────────────────────────── */
     .rating-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.55rem;
+        gap: 0.5rem;
         max-width: 48rem;
-    }
-
-    .ai-chat-shell {
-        position: absolute;
-        left: 0;
-        bottom: 5rem;
-        z-index: 20;
-        display: grid;
-        justify-items: start;
-        width: min(100%, 30rem);
-        max-width: calc(100vw - 1.64rem);
-        pointer-events: none;
-    }
-
-    .ai-hover-button {
-        display: grid;
-        place-items: center;
-        width: 3.15rem;
-        height: 3.15rem;
-        min-height: 0;
-        border: 1px solid rgba(56, 111, 198, 0.24);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.82);
-        color: var(--blue);
-        font-size: 0.9rem;
-        font-weight: 860;
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(20px) saturate(1.35);
-        pointer-events: auto;
-    }
-
-    .ai-hover-button:hover,
-    .ai-chat-shell.expanded .ai-hover-button,
-    .ai-chat-shell:focus-within .ai-hover-button {
-        transform: translateY(-1px);
-        background: rgba(255, 255, 255, 0.94);
-    }
-
-    .ai-chat {
-        display: grid;
-        gap: 0.85rem;
-        width: 100%;
-        max-height: 0;
-        margin-top: 0;
-        overflow: hidden;
-        border: 1px solid var(--glass-border);
-        border-radius: var(--radius-lg);
-        background: rgba(255, 255, 255, 0.62);
-        padding: 0 0.95rem;
-        opacity: 0;
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
-        transform: translateY(-0.35rem) scale(0.98);
-        transform-origin: top left;
-        pointer-events: none;
-        transition:
-            max-height 180ms ease,
-            margin-top 180ms ease,
-            opacity 150ms ease,
-            padding 180ms ease,
-            transform 180ms ease;
-    }
-
-    .ai-chat-shell:hover .ai-chat,
-    .ai-chat-shell:focus-within .ai-chat,
-    .ai-chat-shell.expanded .ai-chat {
-        max-height: min(58dvh, 30rem);
-        margin-top: 0.72rem;
-        padding: 0.95rem;
-        opacity: 1;
-        pointer-events: auto;
-        transform: translateY(0) scale(1);
-    }
-
-    .ai-chat-header {
-        display: flex;
-        align-items: start;
-        justify-content: space-between;
-        gap: 0.75rem;
-    }
-
-    .ai-chat-header h3 {
-        margin: 0.1rem 0 0;
-        font-size: 1rem;
-        line-height: 1.2;
-    }
-
-    .ai-chat-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.45rem;
-        justify-content: end;
-    }
-
-    .ai-thread {
-        display: grid;
-        gap: 0.7rem;
-        max-height: min(32dvh, 16rem);
-        overflow: auto;
-        padding: 0.1rem;
-    }
-
-    .ai-empty {
-        margin: 0;
-        border: 1px dashed rgba(4, 116, 129, 0.28);
-        border-radius: var(--radius-md);
-        background: rgba(255, 255, 255, 0.45);
-        padding: 0.85rem;
-        color: var(--muted);
-        font-size: 0.9rem;
-        line-height: 1.45;
-    }
-
-    .ai-message {
-        display: grid;
-        gap: 0.35rem;
-        max-width: min(100%, 38rem);
-        border: 1px solid rgba(125, 149, 153, 0.2);
-        border-radius: 22px;
-        padding: 0.8rem 0.9rem;
-    }
-
-    .ai-message.user {
-        justify-self: end;
-        background: rgba(56, 111, 198, 0.11);
-    }
-
-    .ai-message.model {
-        justify-self: start;
-        background: rgba(255, 255, 255, 0.76);
-    }
-
-    .ai-message > span {
-        color: var(--teal);
-        font-size: 0.72rem;
-        font-weight: 800;
-        text-transform: uppercase;
-    }
-
-    .ai-composer {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 0.6rem;
-        align-items: end;
-    }
-
-    .ai-input-shell {
-        position: relative;
-        min-width: 0;
-    }
-
-    .ai-input-shell textarea {
-        width: 100%;
-        min-height: 5.3rem;
-        padding-left: 3.05rem;
-        resize: vertical;
-    }
-
-    .ai-plus {
-        position: absolute;
-        left: 0.72rem;
-        bottom: 0.72rem;
-        display: grid;
-        place-items: center;
-        width: 2rem;
-        height: 2rem;
-        min-height: 0;
-        border: 1px solid rgba(125, 149, 153, 0.24);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.82);
-        color: var(--teal);
-        font-size: 1.25rem;
-        font-weight: 720;
-        line-height: 1;
-        box-shadow: 0 8px 18px rgba(42, 58, 68, 0.08);
-    }
-
-    .ai-plus:disabled {
-        cursor: wait;
-        opacity: 0.55;
-    }
-
-    .ai-prompt-menu {
-        position: absolute;
-        left: 0.35rem;
-        bottom: 3.1rem;
-        z-index: 5;
-        display: flex;
-        gap: 0.42rem;
-        border: 1px solid var(--glass-border);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.9);
-        padding: 0.32rem;
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(18px) saturate(1.25);
-    }
-
-    .ai-prompt-menu button {
-        min-height: 2.05rem;
-        padding: 0 0.78rem;
-        border: 0;
-        border-radius: 999px;
-        background: rgba(4, 116, 129, 0.08);
-        color: var(--teal);
-        font-size: 0.82rem;
-        font-weight: 800;
-    }
-
-    .ai-action {
-        min-height: 2.7rem;
-        padding: 0 1rem;
-        border-color: rgba(56, 111, 198, 0.22);
-        color: var(--blue);
-        font-weight: 760;
-    }
-
-    .ai-action:disabled {
-        cursor: wait;
-        opacity: 0.72;
-        transform: none;
-    }
-
-    .ghost-action {
-        min-height: 2.35rem;
-        border-color: rgba(125, 149, 153, 0.22);
-        color: var(--muted);
-        font-weight: 760;
-    }
-
-    .ghost-action.compact {
-        padding: 0 0.85rem;
     }
 
     .rating {
         display: grid;
-        gap: 0.2rem;
-        min-height: 4.2rem;
-        padding: 0.5rem 0.2rem;
-        border: 1px solid rgba(255, 255, 255, 0.42);
+        gap: 0.18rem;
+        min-height: 4.6rem;
+        padding: 0.6rem 0.2rem;
+        border: 1px solid rgba(255, 255, 255, 0.45);
         border-radius: var(--radius-md);
         color: #ffffff;
-        font-weight: 760;
-        box-shadow: 0 12px 26px rgba(42, 58, 68, 0.12);
+        font-size: 0.92rem;
+        font-weight: 750;
+        box-shadow: 0 8px 20px rgba(30, 50, 60, 0.14);
+        transition: transform 100ms ease, box-shadow 100ms ease;
     }
 
     .rating:hover {
         transform: translateY(-2px);
+        box-shadow: 0 14px 28px rgba(30, 50, 60, 0.2);
     }
 
-    .rating small {
-        font-size: 0.82rem;
-        font-weight: 640;
-    }
+    .rating:active { transform: translateY(0) scale(0.97); }
 
-    .rating.again {
-        background: linear-gradient(145deg, var(--red), #e85d57);
-    }
+    .rating small { font-size: 0.79rem; font-weight: 600; opacity: 0.9; }
 
-    .rating.hard {
-        background: linear-gradient(145deg, var(--amber), #e5a93d);
-    }
+    .rating.again { background: linear-gradient(148deg, #e53e3e, #f56565); }
+    .rating.hard  { background: linear-gradient(148deg, #d97706, #f59e0b); }
+    .rating.good  { background: linear-gradient(148deg, #059669, #34d399); }
+    .rating.easy  { background: linear-gradient(148deg, #2563eb, #60a5fa); }
 
-    .rating.good {
-        background: linear-gradient(145deg, var(--green), #4fa96d);
-    }
-
-    .rating.easy {
-        background: linear-gradient(145deg, var(--blue), #5a8adb);
-    }
-
-    .card-form,
-    .edit-panel {
-        display: grid;
-        gap: 0.85rem;
-    }
+    /* ─── Forms ──────────────────────────────────── */
+    .card-form, .edit-panel { display: grid; gap: 0.9rem; }
 
     .card-form {
         border: 1px solid var(--glass-border);
         border-radius: var(--radius-lg);
         background: var(--glass-bg);
-        padding: 1rem;
+        padding: 1.1rem;
         box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
+        backdrop-filter: blur(22px) saturate(1.3);
     }
 
-    .edit-panel {
-        padding: 1rem;
-    }
+    .edit-panel { padding: 1rem; }
+    .edit-panel-title { color: var(--teal); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
 
-    .button-row {
-        display: flex;
-        gap: 0.55rem;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-
-    .button-row button:not(.primary-action) {
-        min-height: 2.6rem;
-        padding: 0 0.9rem;
-    }
+    .button-row { display: flex; gap: 0.55rem; align-items: center; flex-wrap: wrap; }
+    .button-row button:not(.primary-action) { min-height: 2.7rem; padding: 0 0.9rem; }
 
     .search-box {
         border: 1px solid var(--glass-border);
         border-radius: var(--radius-md);
         background: var(--glass-bg);
-        padding: 0.85rem;
+        padding: 0.75rem 0.9rem;
         box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
+        backdrop-filter: blur(22px) saturate(1.3);
     }
 
-    .card-list,
-    .timeline-list {
-        display: grid;
-        gap: 0.7rem;
-    }
+    /* ─── Card list ──────────────────────────────── */
+    .card-list, .timeline-list { display: grid; gap: 0.65rem; }
 
     .card-list article {
         display: grid;
-        gap: 0.75rem;
-        padding: 0.9rem;
+        gap: 0.7rem;
+        padding: 0.9rem 1rem;
     }
 
     .card-preview-title,
     .timeline-list strong {
         display: block;
-        font-size: calc(0.98rem * var(--card-font-scale));
-        font-weight: 760;
-        line-height: 1.3;
+        font-size: calc(0.96rem * var(--card-font-scale));
+        font-weight: 750;
+        line-height: 1.35;
+        color: var(--ink);
     }
 
     .card-preview-body {
         display: -webkit-box;
-        margin-top: 0.25rem;
+        margin-top: 0.22rem;
         overflow: hidden;
         color: var(--muted);
-        font-size: calc(0.95rem * var(--card-font-scale));
-        line-height: 1.45;
+        font-size: calc(0.9rem * var(--card-font-scale));
+        line-height: 1.5;
         -webkit-box-orient: vertical;
-        -webkit-line-clamp: 3;
+        -webkit-line-clamp: 2;
     }
 
-    .card-list small,
-    .timeline-list small {
+    .card-list small, .timeline-list small {
         display: block;
-        margin-top: 0.45rem;
-        color: var(--muted);
-        font-size: 0.78rem;
+        margin-top: 0.4rem;
+        color: var(--muted-lt);
+        font-size: 0.76rem;
     }
 
-    .row-actions {
-        display: flex;
-        gap: 0.45rem;
-    }
+    .row-actions { display: flex; gap: 0.4rem; }
+    .row-actions button { min-height: 2.5rem; padding: 0 0.8rem; font-size: 0.84rem; font-weight: 700; }
+    .danger-link { color: var(--red); }
 
-    .row-actions button {
-        min-height: 2.35rem;
-        padding: 0 0.75rem;
-        font-size: 0.85rem;
-        font-weight: 700;
-    }
+    .hidden-input { display: none; }
 
-    .danger-link {
-        color: #b42318;
-    }
-
-    .hidden-input {
-        display: none;
-    }
-
-    .mode-control {
+    /* ─── Segmented controls ─────────────────────── */
+    .mode-control, .review-controls {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding: 0.22rem;
+        padding: 0.2rem;
         border: 1px solid var(--glass-border);
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.42);
-        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.82);
+        background: rgba(255, 255, 255, 0.45);
+        box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.9);
     }
 
-    .review-controls {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        max-width: 22rem;
-        padding: 0.22rem;
-        border: 1px solid var(--glass-border);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.42);
-        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.82);
-    }
+    .mode-control { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .review-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 22rem; }
 
-    .mode-control button,
-    .review-controls button {
-        min-height: 2.5rem;
+    .mode-control button, .review-controls button {
+        min-height: 2.6rem;
         border: 0;
         background: transparent;
         border-radius: 999px;
         color: var(--muted);
-        font-weight: 760;
+        font-weight: 700;
+        letter-spacing: -0.01em;
     }
 
-    .mode-control button.active,
-    .review-controls button.active {
-        background: rgba(255, 255, 255, 0.82);
-        color: var(--teal);
-        box-shadow: 0 8px 20px rgba(42, 58, 68, 0.1);
+    .mode-control button.active, .review-controls button.active {
+        background: rgba(255, 255, 255, 0.88);
+        color: var(--teal-strong);
+        box-shadow: 0 4px 14px rgba(30, 50, 60, 0.09);
+        font-weight: 750;
     }
 
-    .file-actions {
-        display: grid;
-        gap: 0.7rem;
-    }
-
+    /* ─── File actions ───────────────────────────── */
+    .file-actions { display: grid; gap: 0.65rem; }
     .file-actions button {
-        display: grid;
-        gap: 0.3rem;
-        justify-items: start;
-        min-height: 4.4rem;
-        padding: 0.85rem 1rem;
-        text-align: left;
-        border-radius: var(--radius-md);
+        display: grid; gap: 0.28rem; justify-items: start;
+        min-height: 4.5rem; padding: 0.9rem 1.1rem;
+        text-align: left; border-radius: var(--radius-md);
     }
+    .file-actions strong { font-size: 1rem; font-weight: 750; }
+    .file-actions span { color: var(--muted); font-size: 0.86rem; }
 
-    .file-actions strong {
-        font-size: 1rem;
-    }
-
-    .file-actions span {
-        color: var(--muted);
-        font-size: 0.88rem;
-    }
-
+    /* ─── Stats ──────────────────────────────────── */
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.7rem;
+        gap: 0.65rem;
     }
 
     .stats-grid article {
         display: grid;
-        gap: 0.35rem;
-        padding: 1rem;
+        gap: 0.3rem;
+        padding: 1rem 1.1rem;
     }
 
-    .account-panel {
-        max-width: 42rem;
+    .stats-grid span {
+        color: var(--muted-lt);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
+
+    .stats-grid strong {
+        color: var(--ink);
+        font-size: 2.1rem;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.04em;
+    }
+
+    .stats-grid strong small {
+        font-size: 1rem;
+        font-weight: 600;
+        letter-spacing: 0;
+        color: var(--muted);
+    }
+
+    /* ─── Timeline ───────────────────────────────── */
+    .timeline-list article {
+        display: grid;
+        grid-template-columns: 4.5rem 1fr;
+        gap: 0.75rem;
+        padding: 0.85rem 1rem;
+        align-items: start;
+    }
+
+    .rating-badge {
+        border-radius: 8px;
+        padding: 0.3rem 0.4rem;
+        text-align: center;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #fff;
+    }
+    .rating-badge-again { background: var(--red); }
+    .rating-badge-hard  { background: var(--amber); }
+    .rating-badge-good  { background: var(--green); }
+    .rating-badge-easy  { background: var(--blue); }
+
+    /* ─── Account ────────────────────────────────── */
+    .account-panel { max-width: 42rem; }
 
     .account-card {
         display: grid;
-        gap: 0.7rem;
+        gap: 0.65rem;
         border: 1px solid var(--glass-border);
         border-radius: var(--radius-lg);
         background: var(--glass-strong);
-        padding: 1rem;
+        padding: 1rem 1.1rem;
         box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
+        backdrop-filter: blur(22px) saturate(1.3);
     }
 
     .account-card div {
         display: grid;
-        gap: 0.25rem;
+        gap: 0.22rem;
         min-width: 0;
         border-bottom: 1px solid var(--line);
-        padding-bottom: 0.7rem;
+        padding-bottom: 0.65rem;
     }
 
-    .account-card div:last-child {
-        border-bottom: 0;
-        padding-bottom: 0;
-    }
+    .account-card div:last-child { border-bottom: 0; padding-bottom: 0; }
 
     .account-card span {
-        color: var(--muted);
-        font-size: 0.78rem;
-        font-weight: 760;
+        color: var(--muted-lt);
+        font-size: 0.75rem;
+        font-weight: 700;
         text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
 
-    .account-card strong {
-        min-width: 0;
-        overflow-wrap: anywhere;
-        color: var(--ink);
-        font-size: 1rem;
-    }
+    .account-card strong { min-width: 0; overflow-wrap: anywhere; color: var(--ink); font-size: 0.96rem; }
 
-    .account-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.65rem;
-    }
+    .status-syncing { color: var(--teal); }
+    .status-ok { color: var(--green); }
+
+    .account-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    .account-actions button { min-height: 2.9rem; padding: 0 1.1rem; font-weight: 750; }
 
     .api-key-form {
         display: grid;
-        gap: 0.85rem;
+        gap: 0.9rem;
         border: 1px solid var(--glass-border);
         border-radius: var(--radius-lg);
         background: var(--glass-strong);
-        padding: 1rem;
+        padding: 1rem 1.1rem;
         box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
+        backdrop-filter: blur(22px) saturate(1.3);
     }
 
     .settings-card {
         display: grid;
-        gap: 0.95rem;
+        gap: 0.9rem;
         border: 1px solid var(--glass-border);
         border-radius: var(--radius-lg);
         background: var(--glass-strong);
-        padding: 1rem;
+        padding: 1rem 1.1rem;
         box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(24px) saturate(1.35);
+        backdrop-filter: blur(22px) saturate(1.3);
     }
 
-    .settings-card-header {
-        display: flex;
-        align-items: start;
-        justify-content: space-between;
-        gap: 1rem;
-    }
-
-    .settings-card-header h3 {
-        margin: 0.1rem 0 0;
-        font-size: 1.08rem;
-    }
-
-    .settings-card-header strong {
-        color: var(--teal);
-        font-size: 1rem;
-    }
+    .settings-card-header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+    .settings-card-header h3 { margin: 0.1rem 0 0; font-size: 1rem; }
+    .settings-card-header strong { color: var(--teal); font-size: 0.96rem; font-weight: 750; }
 
     .range-setting {
         display: grid;
-        grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+        grid-template-columns: 2.8rem minmax(0, 1fr) 2.8rem;
         gap: 0.65rem;
         align-items: center;
     }
 
     .range-setting button {
-        min-height: 2.35rem;
-        border-color: rgba(4, 116, 129, 0.18);
+        min-height: 2.5rem;
+        border-color: rgba(4, 116, 129, 0.2);
         color: var(--teal);
-        font-weight: 860;
+        font-weight: 800;
     }
 
     .range-setting input[type="range"] {
         appearance: none;
         width: 100%;
-        height: 0.72rem;
-        border: 1px solid rgba(125, 149, 153, 0.2);
+        height: 0.65rem;
+        border: 1px solid rgba(100, 130, 140, 0.18);
         border-radius: 999px;
         background: linear-gradient(
             90deg,
             var(--teal) 0%,
             var(--teal) var(--range-progress),
-            rgba(125, 149, 153, 0.18) var(--range-progress),
-            rgba(125, 149, 153, 0.18) 100%
+            rgba(100, 130, 140, 0.16) var(--range-progress),
+            rgba(100, 130, 140, 0.16) 100%
         );
         outline: none;
     }
 
     .range-setting input[type="range"]::-webkit-slider-thumb {
         appearance: none;
-        width: 1.55rem;
-        height: 1.55rem;
-        border: 2px solid #ffffff;
+        width: 1.5rem;
+        height: 1.5rem;
+        border: 2.5px solid #ffffff;
         border-radius: 999px;
         background: var(--teal);
-        box-shadow: 0 8px 18px rgba(42, 58, 68, 0.18);
+        box-shadow: 0 4px 14px rgba(30, 50, 60, 0.18);
     }
 
     .range-setting input[type="range"]::-moz-range-thumb {
-        width: 1.35rem;
-        height: 1.35rem;
+        width: 1.3rem;
+        height: 1.3rem;
         border: 2px solid #ffffff;
         border-radius: 999px;
         background: var(--teal);
-        box-shadow: 0 8px 18px rgba(42, 58, 68, 0.18);
+        box-shadow: 0 4px 14px rgba(30, 50, 60, 0.18);
     }
 
-    .profile-note {
-        color: var(--muted);
-        font-size: 0.84rem;
-        line-height: 1.45;
-    }
+    .profile-note { color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
 
-    .account-actions button {
-        min-height: 2.8rem;
-        padding: 0 1rem;
-        font-weight: 760;
-    }
-
-    .stats-grid span {
-        color: var(--muted);
-        font-size: 0.78rem;
-        font-weight: 760;
-        text-transform: uppercase;
-    }
-
-    .stats-grid strong {
-        color: var(--ink);
-        font-size: 2rem;
-        line-height: 1;
-    }
-
-    .timeline-list article {
-        display: grid;
-        grid-template-columns: 4.3rem 1fr;
-        gap: 0.7rem;
-        padding: 0.85rem;
-        align-items: start;
-    }
-
-    .timeline-list article > span {
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.7);
-        color: var(--teal);
-        padding: 0.3rem 0.45rem;
-        text-align: center;
-        font-size: 0.78rem;
-        font-weight: 800;
-    }
-
+    /* ─── Empty / Misc ───────────────────────────── */
     .empty-state {
         display: grid;
-        gap: 0.65rem;
-        justify-items: start;
-        padding: 1.2rem;
+        gap: 0.7rem;
+        justify-items: center;
+        text-align: center;
+        padding: 1.4rem;
         color: var(--muted);
     }
 
-    .empty-state h3 {
-        color: var(--ink);
-    }
+    .empty-icon { font-size: 2.5rem; line-height: 1; }
+    .empty-state h3 { color: var(--ink); font-size: 1.15rem; }
+    .empty-state p { font-size: 0.9rem; line-height: 1.55; }
 
     .empty-state button {
-        min-height: 2.6rem;
-        padding: 0 0.9rem;
+        min-height: 2.7rem;
+        padding: 0 1rem;
         border-color: rgba(4, 116, 129, 0.28);
         color: var(--teal);
-        font-weight: 760;
+        font-weight: 750;
     }
 
-    .compact-empty {
-        box-shadow: none;
-    }
+    .compact-empty { box-shadow: none; }
 
     .inline-status {
-        color: var(--teal);
+        color: var(--teal-strong);
         font-size: 0.88rem;
         font-weight: 700;
+        letter-spacing: 0;
     }
 
     .review-status {
         position: absolute;
-        top: 5.95rem;
+        top: 5.8rem;
         right: 0;
         z-index: 5;
         max-width: min(70%, 24rem);
         text-align: right;
         pointer-events: none;
+        font-size: 0.82rem;
     }
 
+    /* ─── AI chat ────────────────────────────────── */
+    .ai-chat-shell {
+        position: absolute;
+        left: 0;
+        bottom: 5.2rem;
+        z-index: 20;
+        display: grid;
+        justify-items: start;
+        width: min(100%, 30rem);
+        max-width: calc(100vw - 1.5rem);
+        pointer-events: none;
+    }
+
+    .ai-hover-button {
+        display: grid;
+        place-items: center;
+        width: 3.2rem;
+        height: 3.2rem;
+        min-height: 0;
+        border: 1.5px solid rgba(56, 111, 198, 0.28);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.86);
+        color: var(--blue);
+        font-size: 0.88rem;
+        font-weight: 850;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(18px) saturate(1.3);
+        pointer-events: auto;
+    }
+
+    .ai-hover-button:hover,
+    .ai-chat-shell.expanded .ai-hover-button,
+    .ai-chat-shell:focus-within .ai-hover-button {
+        background: rgba(255, 255, 255, 0.96);
+        transform: translateY(-1px);
+    }
+
+    .ai-chat {
+        display: grid; gap: 0.85rem; width: 100%;
+        max-height: 0; margin-top: 0; overflow: hidden;
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.68);
+        padding: 0 0.95rem;
+        opacity: 0;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(22px) saturate(1.3);
+        transform: translateY(-0.3rem) scale(0.98);
+        transform-origin: top left;
+        pointer-events: none;
+        transition: max-height 170ms ease, margin-top 170ms ease, opacity 140ms ease, padding 170ms ease, transform 170ms ease;
+    }
+
+    .ai-chat-shell:hover .ai-chat,
+    .ai-chat-shell:focus-within .ai-chat,
+    .ai-chat-shell.expanded .ai-chat {
+        max-height: min(58dvh, 30rem);
+        margin-top: 0.7rem;
+        padding: 0.95rem;
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+    }
+
+    .ai-chat-header { display: flex; align-items: start; justify-content: space-between; gap: 0.75rem; }
+    .ai-chat-header h3 { margin: 0.1rem 0 0; font-size: 0.98rem; line-height: 1.2; }
+    .ai-chat-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: end; }
+
+    .ai-thread { display: grid; gap: 0.65rem; max-height: min(32dvh, 16rem); overflow: auto; padding: 0.1rem; }
+
+    .ai-empty {
+        margin: 0;
+        border: 1px dashed rgba(4, 116, 129, 0.26);
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.5);
+        padding: 0.9rem;
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.5;
+    }
+
+    .ai-message {
+        display: grid;
+        gap: 0.3rem;
+        max-width: min(100%, 38rem);
+        border: 1px solid rgba(100, 130, 140, 0.18);
+        border-radius: 20px;
+        padding: 0.75rem 0.9rem;
+    }
+
+    .ai-message.user { justify-self: end; background: rgba(56, 111, 198, 0.1); }
+    .ai-message.model { justify-self: start; background: rgba(255, 255, 255, 0.82); }
+    .ai-message > span { color: var(--teal); font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .ai-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; align-items: end; }
+    .ai-input-shell { position: relative; min-width: 0; }
+    .ai-input-shell textarea { width: 100%; min-height: 5rem; padding-left: 3rem; resize: vertical; }
+
+    .ai-plus {
+        position: absolute; left: 0.7rem; bottom: 0.7rem;
+        display: grid; place-items: center;
+        width: 2rem; height: 2rem; min-height: 0;
+        border: 1px solid rgba(100, 130, 140, 0.22);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.85);
+        color: var(--teal); font-size: 1.2rem; font-weight: 720; line-height: 1;
+        box-shadow: 0 4px 12px rgba(30, 50, 60, 0.07);
+    }
+
+    .ai-plus:disabled { cursor: wait; opacity: 0.5; }
+
+    .ai-prompt-menu {
+        position: absolute; left: 0.3rem; bottom: 3rem; z-index: 5;
+        display: flex; gap: 0.4rem;
+        border: 1px solid var(--glass-border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        padding: 0.3rem;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(16px) saturate(1.2);
+    }
+
+    .ai-prompt-menu button {
+        min-height: 2rem; padding: 0 0.75rem;
+        border: 0; border-radius: 999px;
+        background: rgba(4, 116, 129, 0.07);
+        color: var(--teal); font-size: 0.8rem; font-weight: 800;
+    }
+
+    .ai-action { min-height: 2.7rem; padding: 0 1rem; border-color: rgba(56, 111, 198, 0.22); color: var(--blue); font-weight: 750; }
+    .ai-action:disabled { cursor: wait; opacity: 0.68; transform: none; }
+
+    .ghost-action { min-height: 2.35rem; border-color: rgba(100, 130, 140, 0.2); color: var(--muted); font-weight: 750; }
+    .ghost-action.compact { padding: 0 0.85rem; }
+
+    /* ─── Responsive ─────────────────────────────── */
     @media (min-width: 760px) {
         .app-shell {
-            grid-template-columns: 1fr;
-            grid-template-rows: 1fr;
-            height: calc(100dvh - 4rem);
+            height: calc(100dvh - 3rem);
             min-height: 0;
-            margin: 2rem auto;
+            margin: 1.5rem auto;
             border: 1px solid var(--glass-border);
-            border-radius: 34px;
+            border-radius: 32px;
             overflow: hidden;
             box-shadow: var(--shadow-lift);
-            backdrop-filter: blur(28px) saturate(1.28);
+            backdrop-filter: blur(28px) saturate(1.25);
         }
 
         .auth-screen {
             grid-column: 1 / -1;
             max-width: 28rem;
-            min-height: 40rem;
+            min-height: 44rem;
             margin: 0 auto;
             background: transparent;
         }
 
-        .menu-shell {
-            top: calc(2rem + 0.8rem);
-        }
-
-        .tab-rail button {
-            min-height: 2.8rem;
-            font-size: 0.88rem;
-            text-align: left;
-        }
-
-        .tab-rail button.active {
-            box-shadow:
-                inset 0 0 0 1px rgba(255, 255, 255, 0.82),
-                0 12px 28px rgba(42, 58, 68, 0.1);
-            background: rgba(255, 255, 255, 0.76);
+        .bottom-tab-bar {
+            border-radius: 0 0 32px 32px;
+            left: auto;
+            right: auto;
+            max-width: 72rem;
         }
 
         .workspace {
-            grid-column: 1;
-            grid-row: 1;
             padding: 1.35rem;
+            padding-bottom: calc(var(--tab-bar-h) + 0.5rem);
             overflow: hidden;
         }
 
@@ -3062,12 +2929,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             max-width: 48rem;
         }
 
-        .card-form,
-        .edit-panel,
-        .file-actions,
-        .card-list {
-            max-width: 48rem;
-        }
+        .card-form, .edit-panel, .file-actions, .card-list { max-width: 48rem; }
 
         .stats-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
