@@ -40,6 +40,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     type ImportMode = "merge" | "replace";
 
     const storageKey = "anki.personal-srs.collection.v1";
+    const geminiApiKeyStorageKey = "anki.personal-srs.gemini-api-key.v1";
+    const geminiModel = "gemini-3.1-flash-lite";
     const tabs: { id: Tab; label: string }[] = [
         { id: "review", label: "Review" },
         { id: "create", label: "Create" },
@@ -75,6 +77,12 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     let pendingImportKind: ImportKind = "json";
     let fileInput: HTMLInputElement;
     let fileStatus = "";
+    let geminiApiKey = "";
+    let geminiApiKeyInput = "";
+    let aiExplanation = "";
+    let aiStatus = "";
+    let aiLoading = false;
+    let aiCardId = "";
 
     $: due = dueCards(collection.cards);
     $: upcoming = upcomingCards(collection.cards);
@@ -89,12 +97,20 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     $: matureCards = collection.cards.filter((card) => card.intervalDays >= 21).length;
     $: userId = session?.user.id ?? "";
     $: userEmail = session?.user.email ?? "Google account";
+    $: geminiKeySaved = Boolean(geminiApiKey);
     $: if (loaded && session) {
         localStorage.setItem(storageKey, JSON.stringify(collection));
+    }
+    $: if (currentCard?.id !== aiCardId) {
+        aiExplanation = "";
+        aiStatus = "";
+        aiCardId = currentCard?.id ?? "";
     }
 
     onMount(() => {
         let unsubscribe: (() => void) | undefined;
+        geminiApiKey = localStorage.getItem(geminiApiKeyStorageKey) ?? "";
+        geminiApiKeyInput = geminiApiKey;
 
         async function initAuth(): Promise<void> {
             const sessionResult = await supabase.auth.getSession();
@@ -170,6 +186,26 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         menuOpen = !menuOpen;
     }
 
+    function saveGeminiApiKey(): void {
+        const trimmed = geminiApiKeyInput.trim();
+        if (!trimmed) {
+            aiStatus = "Enter a Gemini API key first.";
+            return;
+        }
+
+        geminiApiKey = trimmed;
+        localStorage.setItem(geminiApiKeyStorageKey, trimmed);
+        aiStatus = "Gemini API key saved.";
+    }
+
+    function clearGeminiApiKey(): void {
+        geminiApiKey = "";
+        geminiApiKeyInput = "";
+        localStorage.removeItem(geminiApiKeyStorageKey);
+        aiExplanation = "";
+        aiStatus = "Gemini API key removed.";
+    }
+
     function flipCurrentCard(): void {
         if (currentCard) {
             showBack = !showBack;
@@ -181,6 +217,80 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
             event.preventDefault();
             flipCurrentCard();
         }
+    }
+
+    async function requestAiExplanation(): Promise<void> {
+        if (!currentCard) {
+            return;
+        }
+        if (!geminiApiKey) {
+            aiStatus = "Save a Gemini API key in Account first.";
+            return;
+        }
+
+        aiLoading = true;
+        aiStatus = "";
+        aiExplanation = "";
+        try {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-goog-api-key": geminiApiKey,
+                    },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                role: "user",
+                                parts: [
+                                    {
+                                        text: buildAiExplanationPrompt(currentCard),
+                                    },
+                                ],
+                            },
+                        ],
+                        generationConfig: {
+                            temperature: 0.25,
+                            maxOutputTokens: 700,
+                        },
+                    }),
+                },
+            );
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload?.error?.message ?? "Gemini request failed.");
+            }
+
+            const text = payload?.candidates?.[0]?.content?.parts
+                ?.map((part: { text?: string }) => part.text ?? "")
+                .join("")
+                .trim();
+            if (!text) {
+                throw new Error("Gemini returned an empty explanation.");
+            }
+            aiExplanation = text;
+            aiStatus = "AI explanation ready.";
+        } catch (error) {
+            aiStatus =
+                error instanceof Error ? error.message : "AI explanation failed.";
+        } finally {
+            aiLoading = false;
+        }
+    }
+
+    function buildAiExplanationPrompt(card: SrsCard): string {
+        return [
+            "You are a concise study tutor for an SRS flashcard app.",
+            "Explain the answer in Korean with a compact Markdown structure.",
+            "Do not repeat the full flashcard. Add helpful context, distinctions, and one memory cue.",
+            "Keep it under 220 Korean words.",
+            "",
+            `Question:\n${card.front}`,
+            "",
+            `Answer:\n${card.back}`,
+        ].join("\n");
     }
 
     async function addCard(): Promise<void> {
@@ -873,6 +983,29 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                             </div>
 
                             {#if showBack}
+                                <div class="ai-tools">
+                                    <button
+                                        type="button"
+                                        class="ai-action"
+                                        disabled={aiLoading}
+                                        on:click={requestAiExplanation}
+                                    >
+                                        {aiLoading
+                                            ? "Asking Gemini..."
+                                            : "AI explanation"}
+                                    </button>
+                                    {#if aiStatus}
+                                        <p class="inline-status">{aiStatus}</p>
+                                    {/if}
+                                </div>
+                                {#if aiExplanation}
+                                    <article class="ai-explanation">
+                                        <p class="field-label">Gemini note</p>
+                                        <div class="markdown-content">
+                                            {@html renderMarkdown(aiExplanation)}
+                                        </div>
+                                    </article>
+                                {/if}
                                 <div class="rating-grid" aria-label="Answer buttons">
                                     {#each ratingPreviews as preview}
                                         <button
@@ -1198,7 +1331,45 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                 <span>Remote cards</span>
                                 <strong>{collection.cards.length}</strong>
                             </div>
+                            <div>
+                                <span>AI model</span>
+                                <strong>{geminiModel}</strong>
+                            </div>
+                            <div>
+                                <span>Gemini API key</span>
+                                <strong>
+                                    {geminiKeySaved ? "Saved" : "Not saved"}
+                                </strong>
+                            </div>
                         </div>
+
+                        <form
+                            class="api-key-form"
+                            on:submit|preventDefault={saveGeminiApiKey}
+                        >
+                            <label>
+                                <span>Gemini API key</span>
+                                <input
+                                    bind:value={geminiApiKeyInput}
+                                    type="password"
+                                    placeholder="AIza..."
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                />
+                            </label>
+                            <div class="button-row">
+                                <button type="submit" class="primary-action compact">
+                                    Save key
+                                </button>
+                                <button type="button" on:click={clearGeminiApiKey}>
+                                    Remove key
+                                </button>
+                            </div>
+                            <p class="profile-note">
+                                Stored in this browser profile and used only when you
+                                request an AI explanation.
+                            </p>
+                        </form>
 
                         <div class="account-actions">
                             <button
@@ -1751,6 +1922,40 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         max-width: 48rem;
     }
 
+    .ai-tools {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        align-items: center;
+        max-width: 48rem;
+    }
+
+    .ai-action {
+        min-height: 2.7rem;
+        padding: 0 1rem;
+        border-color: rgba(56, 111, 198, 0.22);
+        color: var(--blue);
+        font-weight: 760;
+    }
+
+    .ai-action:disabled {
+        cursor: wait;
+        opacity: 0.72;
+        transform: none;
+    }
+
+    .ai-explanation {
+        display: grid;
+        gap: 0.7rem;
+        max-width: 48rem;
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        background: var(--glass-strong);
+        padding: 1rem;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px) saturate(1.35);
+    }
+
     .rating {
         display: grid;
         gap: 0.2rem;
@@ -1993,6 +2198,23 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         display: flex;
         flex-wrap: wrap;
         gap: 0.65rem;
+    }
+
+    .api-key-form {
+        display: grid;
+        gap: 0.85rem;
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        background: var(--glass-strong);
+        padding: 1rem;
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(24px) saturate(1.35);
+    }
+
+    .profile-note {
+        color: var(--muted);
+        font-size: 0.84rem;
+        line-height: 1.45;
     }
 
     .account-actions button {
