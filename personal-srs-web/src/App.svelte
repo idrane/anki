@@ -1159,18 +1159,26 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                             <span>{currentCard.deck}</span>
                                             <span>{currentCard.reps} reps</span>
                                         </div>
-                                        <p class="field-label">Front</p>
-                                        <div class="markdown-content question-content">
-                                            {@html renderMarkdown(currentCard.front)}
-                                        </div>
-                                        {#if currentCard.tags.length}
-                                            <div class="tag-row">
-                                                {#each currentCard.tags as tag}
-                                                    <span>{tag}</span>
-                                                {/each}
+                                        <div class="card-center">
+                                            <p class="field-label">Front</p>
+                                            <div
+                                                class="markdown-content question-content"
+                                            >
+                                                {@html renderMarkdown(
+                                                    currentCard.front,
+                                                )}
                                             </div>
-                                        {/if}
-                                        <p class="tap-hint">Tap to reveal answer</p>
+                                        </div>
+                                        <div class="card-footer">
+                                            {#if currentCard.tags.length}
+                                                <div class="tag-row">
+                                                    {#each currentCard.tags as tag}
+                                                        <span>{tag}</span>
+                                                    {/each}
+                                                </div>
+                                            {/if}
+                                            <p class="tap-hint">Tap to reveal answer</p>
+                                        </div>
                                     </section>
 
                                     <section class="card-face card-back">
@@ -1178,21 +1186,27 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                             <span>{currentCard.deck}</span>
                                             <span>{currentCard.phase}</span>
                                         </div>
-                                        <p class="field-label">Back</p>
-                                        <div class="markdown-content answer-content">
-                                            {@html renderMarkdown(currentCard.back)}
-                                        </div>
-                                        {#if currentCard.source}
-                                            <a
-                                                href={currentCard.source}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                on:click|stopPropagation
+                                        <div class="card-center">
+                                            <p class="field-label">Back</p>
+                                            <div
+                                                class="markdown-content answer-content"
                                             >
-                                                Source
-                                            </a>
-                                        {/if}
-                                        <p class="tap-hint">Tap to see question</p>
+                                                {@html renderMarkdown(currentCard.back)}
+                                            </div>
+                                        </div>
+                                        <div class="card-footer">
+                                            {#if currentCard.source}
+                                                <a
+                                                    href={currentCard.source}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    on:click|stopPropagation
+                                                >
+                                                    Source
+                                                </a>
+                                            {/if}
+                                            <p class="tap-hint">Tap to see question</p>
+                                        </div>
                                     </section>
                                 </article>
                             </div>
@@ -1330,10 +1344,6 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
                                         </button>
                                     {/each}
                                 </div>
-                            {:else}
-                                <p class="inline-status flip-instruction">
-                                    Tap the card to flip it.
-                                </p>
                             {/if}
                         {:else}
                             <div class="empty-state">
@@ -2044,8 +2054,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         grid-row: 3;
     }
 
-    .review-panel > .rating-grid,
-    .review-panel > .flip-instruction {
+    .review-panel > .rating-grid {
         grid-row: 4;
     }
 
@@ -2105,8 +2114,8 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         position: absolute;
         inset: 0;
         display: grid;
-        grid-template-rows: auto auto minmax(0, 1fr) auto;
-        gap: 1rem;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 0.85rem;
         padding: 1.18rem;
         overflow: hidden;
         border-radius: inherit;
@@ -2171,15 +2180,37 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
         justify-content: space-between;
         gap: 0.75rem;
         color: var(--muted);
-        font-size: 0.82rem;
+        font-size: 0.78rem;
         font-weight: 700;
+        opacity: 0.82;
+    }
+
+    .card-center {
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        min-height: 0;
+        padding: 1.2rem 0.4rem;
+        text-align: center;
+    }
+
+    .card-center .field-label {
+        margin-bottom: 0.72rem;
+        opacity: 0.78;
+    }
+
+    .card-footer {
+        display: grid;
+        gap: 0.58rem;
+        justify-items: center;
+        min-height: 3rem;
     }
 
     .tag-row {
         display: flex;
         flex-wrap: wrap;
+        justify-content: center;
         gap: 0.45rem;
-        align-self: end;
     }
 
     .tag-row span {
@@ -2201,6 +2232,7 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .markdown-content {
         min-width: 0;
+        max-width: 100%;
         overflow: auto;
         color: #1f2937;
         font-size: calc(1rem * var(--card-font-scale));
@@ -2211,13 +2243,23 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
 
     .question-content {
         color: #111827;
-        font-size: calc(1.24rem * var(--card-font-scale));
-        font-weight: 660;
-        line-height: 1.45;
+        font-size: clamp(
+            calc(2.1rem * var(--card-font-scale)),
+            calc(8.5vw * var(--card-font-scale)),
+            calc(4.1rem * var(--card-font-scale))
+        );
+        font-weight: 780;
+        line-height: 1.08;
     }
 
     .answer-content {
-        font-size: calc(1.08rem * var(--card-font-scale));
+        font-size: clamp(
+            calc(1.45rem * var(--card-font-scale)),
+            calc(5.2vw * var(--card-font-scale)),
+            calc(2.35rem * var(--card-font-scale))
+        );
+        font-weight: 620;
+        line-height: 1.28;
     }
 
     .markdown-content :global(p),
@@ -2278,10 +2320,10 @@ License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
     }
 
     .tap-hint {
-        align-self: end;
         color: var(--muted);
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         font-weight: 700;
+        text-align: center;
     }
 
     .primary-action {
